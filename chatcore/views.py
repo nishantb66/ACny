@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from .constants import SESSION_USER_ID, SESSION_USER_NAME
 
 
-@require_GET
+@require_safe
 def lobby(request: HttpRequest) -> HttpResponse:
     context = {
         "user_id": request.session.get(SESSION_USER_ID),
@@ -16,7 +16,7 @@ def lobby(request: HttpRequest) -> HttpResponse:
     return render(request, "chatcore/lobby.html", context)
 
 
-@require_GET
+@require_safe
 def room(request: HttpRequest, room_id: str) -> HttpResponse:
     context = {
         "room_id": room_id,
@@ -35,6 +35,6 @@ def update_identity(request: HttpRequest) -> HttpResponse:
     return redirect("lobby")
 
 
-@require_GET
+@require_safe
 def healthz(_: HttpRequest) -> JsonResponse:
     return JsonResponse({"ok": True})
