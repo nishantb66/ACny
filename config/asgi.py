@@ -9,7 +9,8 @@ from django.core.asgi import get_asgi_application
 from chatcore.routing import websocket_urlpatterns
 from chatcore.ws_middleware import IdentitySessionMiddlewareStack
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+default_settings = "config.settings.prod" if os.getenv("RENDER") else "config.settings.dev"
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
 
 django_asgi_app = get_asgi_application()
 

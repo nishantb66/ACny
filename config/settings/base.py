@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import environ
@@ -22,6 +23,9 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS")
+if not [origin for origin in CSRF_TRUSTED_ORIGINS if origin]:
+    if os.getenv("RENDER"):
+        CSRF_TRUSTED_ORIGINS = ["https://*.onrender.com"]
 
 INSTALLED_APPS = [
     "daphne",

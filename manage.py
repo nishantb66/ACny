@@ -4,7 +4,8 @@ import sys
 
 
 def main() -> None:
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+    default_settings = "config.settings.prod" if os.getenv("RENDER") else "config.settings.dev"
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
     # Render sometimes uses `python manage.py runserver`; ensure external bind.
     if len(sys.argv) >= 2 and sys.argv[1] == "runserver":
         has_addrport = any(not arg.startswith("-") for arg in sys.argv[2:])
