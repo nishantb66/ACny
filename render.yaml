@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: pulsepair-chat
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "daphne -b 0.0.0.0 -p $PORT config.asgi:application"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.prod
+      - key: DEBUG
+        value: False
+      - key: ALLOWED_HOSTS
+        value: pulsepair-chat.onrender.com
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://pulsepair-chat.onrender.com
+      - key: APP_PREFIX
+        value: e2e_chat
+      - key: REDIS_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true

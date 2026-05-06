@@ -1,0 +1,68 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PulsePair Chat</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'chatcore/css/app.css' %}">
+</head>
+<body class="app-bg text-slate-900 min-h-screen">
+  <main class="mx-auto w-full max-w-md px-4 pt-5 pb-8">
+    <section class="glass-card mb-4">
+      <div class="flex items-center justify-between gap-3">
+        <h1 class="brand-title">PulsePair</h1>
+        <span class="status-pill">Live Lobby</span>
+      </div>
+      <p class="mt-2 text-sm text-slate-600">Private two-person rooms with real-time invite approval.</p>
+    </section>
+
+    <section class="glass-card mb-4">
+      <form action="{% url 'update_identity' %}" method="post" class="space-y-3">
+        {% csrf_token %}
+        <label class="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Display Name</label>
+        <div class="flex gap-2">
+          <input
+            type="text"
+            name="display_name"
+            minlength="3"
+            maxlength="24"
+            value="{{ user_name }}"
+            class="flex-1 rounded-xl border border-[#d9e94b]/60 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#a7cd18]"
+            required
+          />
+          <button class="btn-secondary" type="submit">Save</button>
+        </div>
+      </form>
+      <p class="mt-2 text-xs text-slate-500">Your id: <span class="font-mono">{{ user_id }}</span></p>
+    </section>
+
+    <section class="glass-card mb-4">
+      <button id="createRoomBtn" class="btn-primary w-full" type="button">Create New Room</button>
+      <p class="mt-2 text-xs text-slate-500">Rooms appear to everyone only while at least one participant stays online.</p>
+    </section>
+
+    <section class="glass-card">
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600">Available Rooms</h2>
+        <span id="roomCount" class="text-xs text-slate-500">0 rooms</span>
+      </div>
+      <div id="notificationBanner" class="hidden mb-3 rounded-xl border border-[#a7cd18]/40 bg-[#f7ffdb] px-3 py-2 text-xs"></div>
+      <div id="roomList" class="space-y-2"></div>
+      <p id="emptyState" class="text-sm text-slate-500">No active rooms right now. Create one to start.</p>
+    </section>
+  </main>
+
+  <script>
+    window.CHAT_BOOTSTRAP = {
+      userId: "{{ user_id }}",
+      userName: "{{ user_name|escapejs }}"
+    };
+  </script>
+  <script src="{% static 'chatcore/js/lobby.js' %}"></script>
+</body>
+</html>
