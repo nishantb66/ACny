@@ -9,10 +9,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 env = environ.Env(
     DEBUG=(bool, False),
     SECRET_KEY=(str, "django-insecure-change-me"),
-    ALLOWED_HOSTS=(list, ["127.0.0.1", "localhost"]),
+    ALLOWED_HOSTS=(list, ["*"]),
     CSRF_TRUSTED_ORIGINS=(list, []),
     REDIS_URL=(str, "redis://127.0.0.1:6379/0"),
     APP_PREFIX=(str, "e2e_chat"),
+    USE_REDIS=(bool, True),
 )
 
 environ.Env.read_env(BASE_DIR / ".env")
@@ -81,17 +82,25 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REDIS_URL = env("REDIS_URL")
 APP_PREFIX = env("APP_PREFIX")
+USE_REDIS = env("USE_REDIS")
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [REDIS_URL],
-            "capacity": 2000,
-            "expiry": 20,
-        },
+if USE_REDIS:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [REDIS_URL],
+                "capacity": 2000,
+                "expiry": 20,
+            },
+        }
     }
-}
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = "DENY"

@@ -13,6 +13,7 @@ A production-structured, fully real-time, ephemeral two-person chat application.
   - Room is deleted automatically when everyone leaves.
 - Message delivery and read receipts in real time.
 - Mobile-first responsive UI with yellow/green/white modern theme.
+- Optional no-Redis runtime (`USE_REDIS=False`) for single-instance deployments.
 
 ## Stack
 - Backend: Django 5 + Channels + Daphne
@@ -45,6 +46,10 @@ python manage.py runserver
 ```
 5. Open:
 - `http://127.0.0.1:8000/`
+
+### Run without Redis
+Set `USE_REDIS=False` in `.env`. This uses in-memory runtime state and channel layer.
+Note: in-memory mode is single-instance and state is lost on restart.
 
 ## Docker run
 ```bash

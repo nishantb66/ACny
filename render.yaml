@@ -11,12 +11,14 @@ services:
       - key: DEBUG
         value: False
       - key: ALLOWED_HOSTS
-        value: pulsepair-chat.onrender.com
+        value: "*"
       - key: CSRF_TRUSTED_ORIGINS
-        value: https://pulsepair-chat.onrender.com
+        value: ""
       - key: APP_PREFIX
         value: e2e_chat
+      - key: USE_REDIS
+        value: False
       - key: REDIS_URL
-        sync: false
+        value: redis://127.0.0.1:6379/0
       - key: SECRET_KEY
         generateValue: true

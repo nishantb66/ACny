@@ -7,7 +7,7 @@ from typing import Any
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
 from .constants import LOBBY_GROUP, SESSION_USER_ID, SESSION_USER_NAME
-from .services.realtime_store import RoomStateService
+from .services.backend import RoomStateService
 
 
 class BaseConsumer(AsyncJsonWebsocketConsumer):
