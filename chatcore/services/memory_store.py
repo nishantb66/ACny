@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import secrets
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from chatcore.constants import (
     DEFAULT_SINGLE_USER_DISCOVERABLE,
+    DIRECT_INVITE_TTL_SECONDS,
     MAX_ROOM_PARTICIPANTS,
     TIMED_ONE_TIME_IMAGE_MODE,
 )
@@ -23,6 +24,7 @@ class ServiceResult:
 class RoomStateService:
     _lock = asyncio.Lock()
     _rooms: dict[str, dict[str, Any]] = {}
+    _invite_tokens: dict[str, dict[str, Any]] = {}
 
     @classmethod
     def room_group(cls, room_id: str) -> str:
@@ -159,6 +161,13 @@ class RoomStateService:
     async def delete_room(cls, room_id: str) -> None:
         async with cls._lock:
             cls._rooms.pop(room_id, None)
+            stale_tokens = [
+                token
+                for token, payload in cls._invite_tokens.items()
+                if payload.get("room_id") == room_id
+            ]
+            for token in stale_tokens:
+                cls._invite_tokens.pop(token, None)
 
     @classmethod
     async def online_user_ids(cls, room_id: str) -> list[str]:
@@ -247,6 +256,65 @@ class RoomStateService:
                 return ServiceResult(ok=False, code="forbidden")
             room["discoverable_when_single"] = discoverable_when_single
             return ServiceResult(ok=True, code="updated", data={"room": cls._snapshot(room_id)})
+
+    @classmethod
+    async def create_direct_invite(cls, room_id: str, creator_id: str) -> ServiceResult:
+        async with cls._lock:
+            room = cls._rooms.get(room_id)
+            if not room:
+                return ServiceResult(ok=False, code="room_not_found")
+            if creator_id not in room["participants"]:
+                return ServiceResult(ok=False, code="forbidden")
+
+            token = secrets.token_urlsafe(18)
+            expires_at = datetime.now(UTC) + timedelta(seconds=DIRECT_INVITE_TTL_SECONDS)
+            cls._invite_tokens[token] = {
+                "token": token,
+                "room_id": room_id,
+                "created_by": creator_id,
+                "created_at": cls.utc_now(),
+                "expires_at": expires_at.isoformat(),
+            }
+            return ServiceResult(
+                ok=True,
+                code="created",
+                data={
+                    "token": token,
+                    "room_id": room_id,
+                    "expires_at": expires_at.isoformat(),
+                },
+            )
+
+    @classmethod
+    async def consume_direct_invite(cls, token: str, user_id: str) -> ServiceResult:
+        async with cls._lock:
+            payload = cls._invite_tokens.get(token)
+            if not payload:
+                return ServiceResult(ok=False, code="invite_not_found")
+
+            expires_at_raw = payload.get("expires_at")
+            try:
+                expires_at = datetime.fromisoformat(expires_at_raw) if expires_at_raw else None
+            except ValueError:
+                expires_at = None
+
+            now = datetime.now(UTC)
+            if not expires_at or expires_at <= now:
+                cls._invite_tokens.pop(token, None)
+                return ServiceResult(ok=False, code="invite_expired")
+
+            room_id = payload["room_id"]
+            room = cls._rooms.get(room_id)
+            if not room:
+                cls._invite_tokens.pop(token, None)
+                return ServiceResult(ok=False, code="room_not_found")
+
+            if user_id not in room["participants"] and len(room["participants"]) >= MAX_ROOM_PARTICIPANTS:
+                return ServiceResult(ok=False, code="room_full")
+
+            room["permits"].add(user_id)
+            cls._invite_tokens.pop(token, None)
+            return ServiceResult(ok=True, code="consumed", data={"room_id": room_id})
 
     @classmethod
     async def create_one_time_image(

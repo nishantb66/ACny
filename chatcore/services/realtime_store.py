@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import secrets
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from django.conf import settings
@@ -11,6 +11,7 @@ from redis.asyncio import Redis
 
 from chatcore.constants import (
     DEFAULT_SINGLE_USER_DISCOVERABLE,
+    DIRECT_INVITE_TTL_SECONDS,
     MAX_ROOM_PARTICIPANTS,
     TIMED_ONE_TIME_IMAGE_MODE,
 )
@@ -84,6 +85,10 @@ class RoomStateService:
     @classmethod
     def one_time_image_key(cls, room_id: str, message_id: str) -> str:
         return f"{cls.prefix()}:room:{room_id}:one_time_image:{message_id}"
+
+    @classmethod
+    def direct_invite_key(cls, token: str) -> str:
+        return f"{cls.prefix()}:invite:{token}"
 
     @staticmethod
     def utc_now() -> str:
@@ -429,6 +434,63 @@ class RoomStateService:
         )
         snapshot = await cls.sync_visibility(room_id)
         return ServiceResult(ok=True, code="updated", data={"room": snapshot})
+
+    @classmethod
+    async def create_direct_invite(cls, room_id: str, creator_id: str) -> ServiceResult:
+        redis = cls.redis()
+        if not await redis.exists(cls.room_key(room_id)):
+            return ServiceResult(ok=False, code="room_not_found")
+        if not await redis.sismember(cls.participants_key(room_id), creator_id):
+            return ServiceResult(ok=False, code="forbidden")
+
+        token = secrets.token_urlsafe(18)
+        expires_at = datetime.now(UTC) + timedelta(seconds=DIRECT_INVITE_TTL_SECONDS)
+        payload = {
+            "token": token,
+            "room_id": room_id,
+            "created_by": creator_id,
+            "created_at": cls.utc_now(),
+            "expires_at": expires_at.isoformat(),
+        }
+        await redis.set(
+            cls.direct_invite_key(token),
+            json.dumps(payload),
+            ex=DIRECT_INVITE_TTL_SECONDS,
+        )
+        return ServiceResult(
+            ok=True,
+            code="created",
+            data={"token": token, "room_id": room_id, "expires_at": expires_at.isoformat()},
+        )
+
+    @classmethod
+    async def consume_direct_invite(cls, token: str, user_id: str) -> ServiceResult:
+        redis = cls.redis()
+        invite_key = cls.direct_invite_key(token)
+        raw_payload = await redis.get(invite_key)
+        if not raw_payload:
+            return ServiceResult(ok=False, code="invite_not_found")
+
+        payload = json.loads(raw_payload)
+        room_id = payload.get("room_id")
+        if not room_id:
+            await redis.delete(invite_key)
+            return ServiceResult(ok=False, code="invite_not_found")
+
+        if not await redis.exists(cls.room_key(room_id)):
+            await redis.delete(invite_key)
+            return ServiceResult(ok=False, code="room_not_found")
+
+        is_member = await redis.sismember(cls.participants_key(room_id), user_id)
+        current_count = await redis.scard(cls.participants_key(room_id))
+        if not is_member and current_count >= MAX_ROOM_PARTICIPANTS:
+            return ServiceResult(ok=False, code="room_full")
+
+        pipe = redis.pipeline()
+        pipe.set(cls.permit_key(room_id, user_id), "1", ex=120)
+        pipe.delete(invite_key)
+        await pipe.execute()
+        return ServiceResult(ok=True, code="consumed", data={"room_id": room_id})
 
     @classmethod
     async def create_one_time_image(

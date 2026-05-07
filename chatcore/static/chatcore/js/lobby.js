@@ -11,6 +11,12 @@
     rooms: new Map(),
     socket: null,
   };
+  const inviteErrorMessages = {
+    invite_not_found: "Invite link is invalid or already used.",
+    invite_expired: "Invite link expired. Ask for a fresh link.",
+    room_not_found: "That room is no longer available.",
+    room_full: "Room is already full.",
+  };
 
   const bootstrap = window.CHAT_BOOTSTRAP;
   selfNamePillEl.textContent = bootstrap.userName;
@@ -194,6 +200,12 @@
   createRoomBtn.addEventListener("click", () => {
     state.socket?.send(JSON.stringify({ action: "create_room" }));
   });
+
+  const params = new URLSearchParams(window.location.search);
+  const inviteError = params.get("invite_error");
+  if (inviteError && inviteErrorMessages[inviteError]) {
+    showBanner(inviteErrorMessages[inviteError], true);
+  }
 
   setConnection("Connecting", false);
   connectSocket();

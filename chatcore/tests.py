@@ -1,6 +1,6 @@
-from django.test import SimpleTestCase
+from django.test import Client, SimpleTestCase
 
-from .constants import TIMED_ONE_TIME_IMAGE_MODE
+from .constants import SESSION_USER_ID, SESSION_USER_NAME, TIMED_ONE_TIME_IMAGE_MODE
 from .services.memory_store import RoomStateService
 
 
@@ -13,6 +13,7 @@ class HealthTests(SimpleTestCase):
 class OneTimeImageFlowTests(SimpleTestCase):
     def setUp(self):
         RoomStateService._rooms = {}
+        RoomStateService._invite_tokens = {}
 
     def _join_second_participant(self, room_id: str):
         request = self.async_run(RoomStateService.create_join_request(room_id, "user-2", "User Two"))
@@ -79,3 +80,53 @@ class OneTimeImageFlowTests(SimpleTestCase):
         )
         self.assertTrue(sent.ok, sent.code)
         self.assertEqual(sent.data["message"]["view_seconds"], 30)
+
+
+class DirectInviteFlowTests(SimpleTestCase):
+    @staticmethod
+    def async_run(awaitable):
+        import asyncio
+
+        return asyncio.run(awaitable)
+
+    def setUp(self):
+        RoomStateService._rooms = {}
+        RoomStateService._invite_tokens = {}
+
+    def test_whatsapp_invite_link_redirects_directly_to_room(self):
+        self.client.get("/")
+        owner_session = self.client.session
+        owner_id = owner_session[SESSION_USER_ID]
+        owner_name = owner_session[SESSION_USER_NAME]
+
+        created = self.async_run(RoomStateService.create_room(owner_id, owner_name))
+        room_id = created.data["room"]["id"]
+
+        invite_resp = self.client.post(f"/api/room/{room_id}/invite/")
+        self.assertEqual(invite_resp.status_code, 200)
+        invite_url = invite_resp.json()["invite_url"]
+
+        guest_client = Client()
+        response = guest_client.get(invite_url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, f"/room/{room_id}/")
+
+    def test_direct_invite_is_single_use(self):
+        self.client.get("/")
+        owner_id = self.client.session[SESSION_USER_ID]
+        owner_name = self.client.session[SESSION_USER_NAME]
+        created = self.async_run(RoomStateService.create_room(owner_id, owner_name))
+        room_id = created.data["room"]["id"]
+
+        invite_resp = self.client.post(f"/api/room/{room_id}/invite/")
+        invite_url = invite_resp.json()["invite_url"]
+
+        first_guest = Client()
+        first_redirect = first_guest.get(invite_url)
+        self.assertEqual(first_redirect.status_code, 302)
+        self.assertEqual(first_redirect.url, f"/room/{room_id}/")
+
+        second_guest = Client()
+        second_redirect = second_guest.get(invite_url)
+        self.assertEqual(second_redirect.status_code, 302)
+        self.assertEqual(second_redirect.url, "/?invite_error=invite_not_found")

@@ -3,6 +3,7 @@
   const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
 
   const roomStatusPill = document.getElementById("roomStatusPill");
+  const inviteWhatsappBtn = document.getElementById("inviteWhatsappBtn");
   const participantsEl = document.getElementById("participants");
   const joinRequestsPanelEl = document.getElementById("joinRequestsPanel");
   const joinRequestsEl = document.getElementById("joinRequests");
@@ -50,6 +51,17 @@
   const setStatus = (text, isOffline = false) => {
     roomStatusPill.textContent = text;
     roomStatusPill.dataset.state = isOffline ? "offline" : "online";
+  };
+
+  const getCookieValue = (name) => {
+    const raw = document.cookie
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${name}=`));
+    if (!raw) {
+      return "";
+    }
+    return decodeURIComponent(raw.slice(name.length + 1));
   };
 
   const autoGrow = () => {
@@ -674,6 +686,43 @@
   cancelReplyBtn.addEventListener("click", clearReplyTarget);
   openImageComposerBtn.addEventListener("click", openImageComposerModal);
   closeImageComposerBtn.addEventListener("click", closeImageComposerModal);
+
+  inviteWhatsappBtn.addEventListener("click", async () => {
+    inviteWhatsappBtn.disabled = true;
+    const originalText = inviteWhatsappBtn.textContent;
+    inviteWhatsappBtn.textContent = "Creating...";
+
+    try {
+      const response = await fetch(`/api/room/${bootstrap.roomId}/invite/`, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCookieValue("csrftoken"),
+        },
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok || !payload.invite_url) {
+        showSystemNote("Could not create invite right now.");
+        return;
+      }
+
+      const inviteUrl = payload.invite_url;
+      const message = `Join my private PulsePair room: ${inviteUrl}`;
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+
+      const shareWindow = window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+      if (!shareWindow) {
+        await navigator.clipboard.writeText(inviteUrl);
+        showSystemNote("Invite link copied. Paste it on WhatsApp.");
+        return;
+      }
+      showSystemNote("Opening WhatsApp with your invite link.");
+    } catch {
+      showSystemNote("Could not create invite right now.");
+    } finally {
+      inviteWhatsappBtn.disabled = false;
+      inviteWhatsappBtn.textContent = originalText;
+    }
+  });
 
   imagePickerBtn.addEventListener("click", () => imageInputEl.click());
 

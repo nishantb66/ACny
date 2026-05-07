@@ -276,6 +276,11 @@ body {
   font-weight: 700;
 }
 
+.btn-invite-compact {
+  min-height: 28px;
+  padding: 0.32rem 0.58rem;
+}
+
 .btn-primary:hover,
 .btn-secondary:hover {
   transform: translateY(-1px);
