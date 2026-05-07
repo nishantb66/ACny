@@ -15,6 +15,7 @@ env = environ.Env(
     REDIS_URL=(str, "redis://127.0.0.1:6379/0"),
     APP_PREFIX=(str, "e2e_chat"),
     USE_REDIS=(bool, True),
+    USE_MANIFEST_STATIC=(bool, False),
 )
 
 environ.Env.read_env(BASE_DIR / ".env")
@@ -82,17 +83,26 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
-STORAGES = {
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REDIS_URL = env("REDIS_URL")
 APP_PREFIX = env("APP_PREFIX")
 USE_REDIS = env("USE_REDIS")
+USE_MANIFEST_STATIC = env("USE_MANIFEST_STATIC")
+
+if USE_MANIFEST_STATIC:
+    STORAGES = {
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
 
 if USE_REDIS:
     CHANNEL_LAYERS = {

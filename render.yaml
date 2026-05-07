@@ -13,10 +13,12 @@ services:
       - key: ALLOWED_HOSTS
         value: "*"
       - key: CSRF_TRUSTED_ORIGINS
-        value: ""
+        value: https://acny.onrender.com
       - key: APP_PREFIX
         value: e2e_chat
       - key: USE_REDIS
+        value: False
+      - key: USE_MANIFEST_STATIC
         value: False
       - key: REDIS_URL
         value: redis://127.0.0.1:6379/0
