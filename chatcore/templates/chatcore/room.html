@@ -62,6 +62,7 @@
         </div>
 
         <div class="composer-row">
+          <button id="openImageComposerBtn" class="btn-secondary btn-image-launch" type="button">Image</button>
           <textarea
             id="messageInput"
             rows="1"
@@ -77,6 +78,53 @@
       </form>
     </section>
   </main>
+
+  <div id="imageComposerModal" class="image-compose-modal hidden" role="dialog" aria-modal="true" aria-labelledby="imageComposerTitle">
+    <div class="image-compose-shell">
+      <div class="image-compose-head">
+        <div>
+          <p id="imageComposerTitle" class="section-title">Send One-Time Image</p>
+          <p class="meta-text">Upload up to 5MB</p>
+        </div>
+        <button id="closeImageComposerBtn" type="button" class="btn-secondary image-close-btn">Close</button>
+      </div>
+
+      <input id="imageInput" type="file" accept="image/*" class="hidden">
+      <button id="imagePickerBtn" class="btn-secondary image-tool-btn w-full" type="button">Choose Image</button>
+      <p id="selectedImageMeta" class="selected-image-meta"></p>
+
+      <div class="image-compose-grid">
+        <label class="image-mode-wrap">
+          <span class="image-mode-label">Mode</span>
+          <select id="imageModeSelect" class="image-mode-select">
+            <option value="one_time_seen">One Time Seen</option>
+            <option value="timed_one_time_seen">Timed One Time Seen</option>
+          </select>
+        </label>
+        <label id="imageSecondsWrap" class="image-seconds-wrap hidden">
+          <span class="image-mode-label">Seconds</span>
+          <input id="imageSecondsInput" type="number" min="1" max="60" value="12" class="image-seconds-input">
+        </label>
+      </div>
+
+      <button id="sendImageBtn" class="btn-primary image-send-btn w-full" type="button">
+        <span class="btn-main">Send Image</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="oneTimeImageModal" class="image-view-modal hidden" role="dialog" aria-modal="true" aria-labelledby="oneTimeImageTitle">
+    <div class="image-view-shell">
+      <div class="image-view-head">
+        <div>
+          <p id="oneTimeImageTitle" class="image-view-title">One-time image</p>
+          <p id="oneTimeImageTimer" class="image-view-timer"></p>
+        </div>
+        <button id="closeOneTimeImageBtn" type="button" class="btn-secondary image-close-btn">Close</button>
+      </div>
+      <img id="oneTimeImageView" class="image-view-img" alt="One-time image">
+    </div>
+  </div>
 
   <script>
     window.CHAT_BOOTSTRAP = {

@@ -1,13 +1,29 @@
 from __future__ import annotations
 
+import base64
+import binascii
+import re
 import secrets
 from collections.abc import Callable
 from typing import Any
 
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
-from .constants import LOBBY_GROUP, SESSION_USER_ID, SESSION_USER_NAME
+from .constants import (
+    ALLOWED_ONE_TIME_IMAGE_MIME_TYPES,
+    LOBBY_GROUP,
+    MAX_ONE_TIME_IMAGE_BYTES,
+    MAX_ONE_TIME_IMAGE_VIEW_SECONDS,
+    ONE_TIME_IMAGE_MODE,
+    SESSION_USER_ID,
+    SESSION_USER_NAME,
+    TIMED_ONE_TIME_IMAGE_MODE,
+)
 from .services.backend import RoomStateService
+
+ONE_TIME_IMAGE_DATA_URL_RE = re.compile(
+    r"^data:(?P<mime>image\/[a-zA-Z0-9.+-]+);base64,(?P<data>[A-Za-z0-9+/=\s]+)$"
+)
 
 
 class BaseConsumer(AsyncJsonWebsocketConsumer):
@@ -216,6 +232,9 @@ class RoomConsumer(BaseConsumer):
 
         actions = {
             "message_send": self.handle_message_send,
+            "image_send": self.handle_image_send,
+            "image_open": self.handle_image_open,
+            "image_close": self.handle_image_close,
             "message_read": self.handle_message_read,
             "typing": self.handle_typing,
             "join_decision": self.handle_join_decision,
@@ -240,22 +259,12 @@ class RoomConsumer(BaseConsumer):
             await self.send_error("message_too_long", "Max 2000 characters")
             return
 
-        reply_to_raw = payload.get("reply_to") or None
-        reply_to = None
-        if isinstance(reply_to_raw, dict):
-            reply_id = str(reply_to_raw.get("id", "")).strip()
-            reply_sender_name = str(reply_to_raw.get("sender_name", "")).strip()
-            reply_body = str(reply_to_raw.get("body", "")).strip()
-            if reply_id and reply_sender_name and reply_body:
-                reply_to = {
-                    "id": reply_id[:64],
-                    "sender_name": reply_sender_name[:40],
-                    "body": reply_body[:220],
-                }
+        reply_to = self._sanitize_reply(payload.get("reply_to"))
 
         message_id = secrets.token_urlsafe(10)
         event_payload = {
             "id": message_id,
+            "message_type": "text",
             "body": text,
             "sender_id": self.user_id,
             "sender_name": self.user_name,
@@ -282,6 +291,117 @@ class RoomConsumer(BaseConsumer):
                     "recipient_ids": recipient_ids,
                 }
             )
+
+    async def handle_image_send(self, payload: dict[str, Any]) -> None:
+        parsed_image = self._parse_one_time_image(payload)
+        if not parsed_image:
+            await self.send_error("invalid_image_payload", "Unsupported image format or size")
+            return
+
+        view_mode = str(payload.get("view_mode") or ONE_TIME_IMAGE_MODE)
+        if view_mode not in {ONE_TIME_IMAGE_MODE, TIMED_ONE_TIME_IMAGE_MODE}:
+            await self.send_error("invalid_view_mode", "Unsupported one-time image mode")
+            return
+
+        view_seconds: int | None = None
+        if view_mode == TIMED_ONE_TIME_IMAGE_MODE:
+            raw_seconds = payload.get("view_seconds")
+            try:
+                view_seconds = int(raw_seconds)
+            except (TypeError, ValueError):
+                await self.send_error("invalid_view_seconds", "Provide viewing time in seconds")
+                return
+            if not (1 <= view_seconds <= MAX_ONE_TIME_IMAGE_VIEW_SECONDS):
+                await self.send_error(
+                    "invalid_view_seconds",
+                    f"Viewing time must be 1-{MAX_ONE_TIME_IMAGE_VIEW_SECONDS} seconds",
+                )
+                return
+
+        result = await RoomStateService.create_one_time_image(
+            self.room_id,
+            self.user_id,
+            self.user_name,
+            parsed_image["data_url"],
+            parsed_image["mime_type"],
+            view_mode,
+            view_seconds,
+        )
+        if not result.ok:
+            await self.send_error(result.code, "Unable to send one-time image")
+            return
+
+        message = result.data["message"]
+        await self.channel_layer.group_send(
+            self.room_group,
+            {
+                "type": "chat.message",
+                "payload": message,
+            },
+        )
+
+        online_users = await RoomStateService.online_user_ids(self.room_id)
+        recipient_ids = [uid for uid in online_users if uid != self.user_id]
+        if recipient_ids:
+            await self.send_json(
+                {
+                    "type": "message_status",
+                    "status": "delivered",
+                    "message_id": message["id"],
+                    "recipient_ids": recipient_ids,
+                }
+            )
+
+    async def handle_image_open(self, payload: dict[str, Any]) -> None:
+        message_id = str(payload.get("message_id", "")).strip()
+        if not message_id:
+            await self.send_error("invalid_request", "Missing image id")
+            return
+
+        result = await RoomStateService.get_one_time_image_for_view(
+            self.room_id,
+            message_id,
+            self.user_id,
+        )
+        if not result.ok:
+            await self.send_error(result.code, "Unable to open one-time image")
+            return
+
+        await self.send_json(
+            {
+                "type": "image_open_result",
+                "message": result.data["message"],
+                "view": result.data["view"],
+            }
+        )
+
+    async def handle_image_close(self, payload: dict[str, Any]) -> None:
+        message_id = str(payload.get("message_id", "")).strip()
+        if not message_id:
+            await self.send_error("invalid_request", "Missing image id")
+            return
+
+        result = await RoomStateService.consume_one_time_image(
+            self.room_id,
+            message_id,
+            self.user_id,
+        )
+        if not result.ok:
+            await self.send_error(result.code, "Unable to close one-time image")
+            return
+
+        message = result.data["message"]
+        if result.code == "already_opened":
+            await self.send_json({"type": "image_opened", "payload": message})
+            return
+
+        await self.channel_layer.group_send(
+            self.room_group,
+            {
+                "type": "chat.image_opened",
+                "payload": message,
+            },
+        )
 
     async def handle_message_read(self, payload: dict[str, Any]) -> None:
         message_id = payload.get("message_id")
@@ -433,3 +553,47 @@ class RoomConsumer(BaseConsumer):
 
     async def chat_participant_left(self, event: dict[str, Any]) -> None:
         await self.send_json({"type": "participant_left", "payload": event["payload"]})
+
+    async def chat_image_opened(self, event: dict[str, Any]) -> None:
+        await self.send_json({"type": "image_opened", "payload": event["payload"]})
+
+    @staticmethod
+    def _sanitize_reply(reply_to_raw: Any) -> dict[str, str] | None:
+        if not isinstance(reply_to_raw, dict):
+            return None
+        reply_id = str(reply_to_raw.get("id", "")).strip()
+        reply_sender_name = str(reply_to_raw.get("sender_name", "")).strip()
+        reply_body = str(reply_to_raw.get("body", "")).strip()
+        if reply_id and reply_sender_name and reply_body:
+            return {
+                "id": reply_id[:64],
+                "sender_name": reply_sender_name[:40],
+                "body": reply_body[:220],
+            }
+        return None
+
+    @staticmethod
+    def _parse_one_time_image(payload: dict[str, Any]) -> dict[str, str] | None:
+        raw_data_url = str(payload.get("image_data_url") or "").strip()
+        if not raw_data_url:
+            return None
+        match = ONE_TIME_IMAGE_DATA_URL_RE.match(raw_data_url)
+        if not match:
+            return None
+
+        mime_type = match.group("mime").lower()
+        if mime_type not in ALLOWED_ONE_TIME_IMAGE_MIME_TYPES:
+            return None
+
+        raw_base64 = "".join(match.group("data").split())
+        try:
+            image_bytes = base64.b64decode(raw_base64, validate=True)
+        except (ValueError, binascii.Error):
+            return None
+        if len(image_bytes) > MAX_ONE_TIME_IMAGE_BYTES:
+            return None
+
+        return {
+            "mime_type": mime_type,
+            "data_url": f"data:{mime_type};base64,{raw_base64}",
+        }

@@ -471,6 +471,47 @@ body {
   margin: 0;
 }
 
+.message-image-card {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.message-image-caption {
+  color: #44566e;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.message-image-status {
+  color: #5a667b;
+  font-size: 12px;
+  margin: 0;
+}
+
+.message-image-btn {
+  align-items: center;
+  background: #f0f9cc;
+  border: 1px solid rgba(126, 167, 15, 0.4);
+  border-radius: 0.74rem;
+  color: #31450b;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 34px;
+  padding: 0.34rem 0.62rem;
+}
+
+.message-image-btn[disabled] {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #7c8594;
+  cursor: not-allowed;
+}
+
 .message-meta-row {
   align-items: center;
   display: flex;
@@ -564,6 +605,102 @@ body {
   gap: 0.48rem;
 }
 
+.image-tool-btn {
+  min-height: 36px;
+  padding: 0.4rem 0.65rem;
+}
+
+.btn-image-launch {
+  min-height: 44px;
+  min-width: 72px;
+  padding: 0.4rem 0.62rem;
+}
+
+.image-mode-wrap,
+.image-seconds-wrap {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.image-mode-label {
+  color: #60744b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.image-mode-select,
+.image-seconds-input {
+  background: #ffffff;
+  border: 1px solid rgba(126, 167, 15, 0.36);
+  border-radius: 0.72rem;
+  color: #152132;
+  font-size: 12px;
+  min-height: 36px;
+  outline: none;
+  padding: 0.3rem 0.45rem;
+}
+
+.image-mode-select:focus,
+.image-seconds-input:focus {
+  border-color: rgba(126, 167, 15, 0.72);
+  box-shadow: 0 0 0 3px rgba(126, 167, 15, 0.15);
+}
+
+.image-seconds-input {
+  max-width: 66px;
+}
+
+.image-send-btn {
+  min-height: 36px;
+  min-width: 104px;
+  padding: 0.4rem 0.7rem;
+}
+
+.image-compose-modal {
+  align-items: center;
+  background: rgba(8, 14, 23, 0.68);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 0.85rem;
+  position: fixed;
+  z-index: 58;
+}
+
+.image-compose-shell {
+  background: #f8fbe9;
+  border: 1px solid rgba(126, 167, 15, 0.3);
+  border-radius: 0.9rem;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.18);
+  max-width: 420px;
+  padding: 0.8rem;
+  width: 100%;
+}
+
+.image-compose-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.62rem;
+}
+
+.image-compose-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 0.65rem;
+}
+
+.selected-image-meta {
+  color: #4f6a2d;
+  font-size: 11px;
+  font-weight: 600;
+  margin: 0.4rem 0 0.6rem;
+  min-height: 15px;
+}
+
 .composer-input {
   max-height: 130px;
   min-height: 44px;
@@ -573,6 +710,63 @@ body {
 .btn-send {
   align-self: stretch;
   min-width: 84px;
+}
+
+.image-view-modal {
+  align-items: center;
+  background: rgba(8, 14, 23, 0.92);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 0.85rem;
+  position: fixed;
+  z-index: 60;
+}
+
+.image-view-shell {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(216, 236, 75, 0.34);
+  border-radius: 0.8rem;
+  max-height: 100%;
+  max-width: 520px;
+  padding: 0.65rem;
+  width: 100%;
+}
+
+.image-view-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.55rem;
+}
+
+.image-view-title {
+  color: #efffc2;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.image-view-timer {
+  color: #dce8f6;
+  font-size: 12px;
+  margin: 0.1rem 0 0;
+  min-height: 14px;
+}
+
+.image-close-btn {
+  min-height: 34px;
+  padding: 0.28rem 0.55rem;
+}
+
+.image-view-img {
+  background: #0f172a;
+  border-radius: 0.65rem;
+  display: block;
+  max-height: min(74vh, 620px);
+  object-fit: contain;
+  width: 100%;
 }
 
 .hidden {
@@ -587,5 +781,16 @@ body {
   .hero-copy,
   .meta-text {
     font-size: 13px;
+  }
+}
+
+@media (max-width: 420px) {
+  .image-compose-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .image-mode-select,
+  .image-seconds-input {
+    width: 100%;
   }
 }

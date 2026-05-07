@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from chatcore.constants import DEFAULT_SINGLE_USER_DISCOVERABLE, MAX_ROOM_PARTICIPANTS
+from chatcore.constants import (
+    DEFAULT_SINGLE_USER_DISCOVERABLE,
+    MAX_ROOM_PARTICIPANTS,
+    TIMED_ONE_TIME_IMAGE_MODE,
+)
 
 
 @dataclass(slots=True)
@@ -61,6 +65,7 @@ class RoomStateService:
                     },
                     "pending_requests": {},
                     "permits": set(),
+                    "ephemeral_images": {},
                 }
                 return ServiceResult(ok=True, code="created", data={"room": cls._snapshot(room_id)})
         return ServiceResult(ok=False, code="room_generation_failed")
@@ -242,6 +247,152 @@ class RoomStateService:
                 return ServiceResult(ok=False, code="forbidden")
             room["discoverable_when_single"] = discoverable_when_single
             return ServiceResult(ok=True, code="updated", data={"room": cls._snapshot(room_id)})
+
+    @classmethod
+    async def create_one_time_image(
+        cls,
+        room_id: str,
+        sender_id: str,
+        sender_name: str,
+        image_data_url: str,
+        mime_type: str,
+        view_mode: str,
+        view_seconds: int | None,
+    ) -> ServiceResult:
+        async with cls._lock:
+            room = cls._rooms.get(room_id)
+            if not room:
+                return ServiceResult(ok=False, code="room_not_found")
+            if sender_id not in room["participants"]:
+                return ServiceResult(ok=False, code="forbidden")
+
+            message_id = secrets.token_urlsafe(10)
+            payload = {
+                "id": message_id,
+                "message_type": "one_time_image",
+                "sender_id": sender_id,
+                "sender_name": sender_name,
+                "sent_at": cls.utc_now(),
+                "image_data_url": image_data_url,
+                "mime_type": mime_type,
+                "view_mode": view_mode,
+                "view_seconds": int(view_seconds) if view_mode == TIMED_ONE_TIME_IMAGE_MODE else None,
+                "opened_at": None,
+                "opened_by": None,
+                "active_viewer_id": None,
+                "active_view_started_at": None,
+                "is_opened": False,
+                "preview_text": (
+                    "Timed one-time image"
+                    if view_mode == TIMED_ONE_TIME_IMAGE_MODE
+                    else "One-time image"
+                ),
+            }
+            room["ephemeral_images"][message_id] = payload
+            return ServiceResult(ok=True, code="created", data={"message": cls._image_public_payload(payload)})
+
+    @classmethod
+    async def get_one_time_image_for_view(
+        cls,
+        room_id: str,
+        message_id: str,
+        viewer_id: str,
+    ) -> ServiceResult:
+        async with cls._lock:
+            room = cls._rooms.get(room_id)
+            if not room:
+                return ServiceResult(ok=False, code="room_not_found")
+            if viewer_id not in room["participants"]:
+                return ServiceResult(ok=False, code="forbidden")
+
+            payload = room["ephemeral_images"].get(message_id)
+            if not payload:
+                return ServiceResult(ok=False, code="image_not_found")
+            if payload["sender_id"] == viewer_id:
+                return ServiceResult(ok=False, code="sender_cannot_open")
+            if payload["opened_at"]:
+                return ServiceResult(ok=False, code="image_already_opened")
+
+            active_viewer_id = payload.get("active_viewer_id")
+            if active_viewer_id and active_viewer_id != viewer_id:
+                return ServiceResult(ok=False, code="image_view_in_progress")
+
+            payload["active_viewer_id"] = viewer_id
+            payload["active_view_started_at"] = cls.utc_now()
+
+            return ServiceResult(
+                ok=True,
+                code="open_granted",
+                data={
+                    "message": cls._image_public_payload(payload),
+                    "view": {
+                        "message_id": payload["id"],
+                        "image_data_url": payload["image_data_url"],
+                        "mime_type": payload["mime_type"],
+                        "view_mode": payload["view_mode"],
+                        "view_seconds": payload["view_seconds"],
+                        "opened_at": payload["opened_at"],
+                    },
+                },
+            )
+
+    @classmethod
+    async def consume_one_time_image(
+        cls,
+        room_id: str,
+        message_id: str,
+        viewer_id: str,
+    ) -> ServiceResult:
+        async with cls._lock:
+            room = cls._rooms.get(room_id)
+            if not room:
+                return ServiceResult(ok=False, code="room_not_found")
+            if viewer_id not in room["participants"]:
+                return ServiceResult(ok=False, code="forbidden")
+
+            payload = room["ephemeral_images"].get(message_id)
+            if not payload:
+                return ServiceResult(ok=False, code="image_not_found")
+            if payload["sender_id"] == viewer_id:
+                return ServiceResult(ok=False, code="sender_cannot_open")
+            if payload["opened_at"]:
+                return ServiceResult(
+                    ok=True,
+                    code="already_opened",
+                    data={"message": cls._image_public_payload(payload)},
+                )
+
+            active_viewer_id = payload.get("active_viewer_id")
+            if active_viewer_id and active_viewer_id != viewer_id:
+                return ServiceResult(ok=False, code="forbidden")
+
+            payload["opened_at"] = cls.utc_now()
+            payload["opened_by"] = viewer_id
+            payload["active_viewer_id"] = None
+            payload["active_view_started_at"] = None
+            payload["is_opened"] = True
+
+            return ServiceResult(
+                ok=True,
+                code="opened",
+                data={"message": cls._image_public_payload(payload)},
+            )
+
+    @classmethod
+    def _image_public_payload(cls, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": payload["id"],
+            "message_type": payload["message_type"],
+            "sender_id": payload["sender_id"],
+            "sender_name": payload["sender_name"],
+            "sent_at": payload["sent_at"],
+            "view_mode": payload["view_mode"],
+            "view_seconds": payload["view_seconds"],
+            "opened_at": payload["opened_at"],
+            "opened_by": payload["opened_by"],
+            "is_opened": bool(payload["opened_at"]),
+            "preview_text": payload["preview_text"],
+        }
 
     @classmethod
     def _snapshot(cls, room_id: str) -> dict[str, Any] | None:

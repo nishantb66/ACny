@@ -9,12 +9,29 @@
   const messagesEl = document.getElementById("messages");
   const composerEl = document.getElementById("composer");
   const messageInputEl = document.getElementById("messageInput");
+  const openImageComposerBtn = document.getElementById("openImageComposerBtn");
   const discoverableToggleEl = document.getElementById("discoverableToggle");
   const typingIndicatorEl = document.getElementById("typingIndicator");
   const replyPreviewEl = document.getElementById("replyPreview");
   const replyToNameEl = document.getElementById("replyToName");
   const replyToBodyEl = document.getElementById("replyToBody");
   const cancelReplyBtn = document.getElementById("cancelReplyBtn");
+
+  const imageInputEl = document.getElementById("imageInput");
+  const imagePickerBtn = document.getElementById("imagePickerBtn");
+  const closeImageComposerBtn = document.getElementById("closeImageComposerBtn");
+  const sendImageBtn = document.getElementById("sendImageBtn");
+  const imageModeSelectEl = document.getElementById("imageModeSelect");
+  const imageSecondsWrapEl = document.getElementById("imageSecondsWrap");
+  const imageSecondsInputEl = document.getElementById("imageSecondsInput");
+  const selectedImageMetaEl = document.getElementById("selectedImageMeta");
+  const imageComposerModalEl = document.getElementById("imageComposerModal");
+
+  const oneTimeImageModalEl = document.getElementById("oneTimeImageModal");
+  const oneTimeImageViewEl = document.getElementById("oneTimeImageView");
+  const oneTimeImageTimerEl = document.getElementById("oneTimeImageTimer");
+  const closeOneTimeImageBtn = document.getElementById("closeOneTimeImageBtn");
+  const maxImageUploadBytes = 5 * 1024 * 1024;
 
   const state = {
     socket: null,
@@ -26,6 +43,8 @@
     replyTo: null,
     typingSent: false,
     typingTimer: null,
+    selectedImage: null,
+    activeImageView: null,
   };
 
   const setStatus = (text, isOffline = false) => {
@@ -46,14 +65,29 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   };
 
+  const previewTextForMessage = (msg) => {
+    if (msg.message_type === "one_time_image") {
+      return msg.preview_text || "One-time image";
+    }
+    return msg.body || "";
+  };
+
+  const formatViewMode = (msg) => {
+    if (msg.view_mode === "timed_one_time_seen") {
+      return `${msg.view_seconds || 0}s timed one-time image`;
+    }
+    return "One-time image";
+  };
+
   const setReplyTarget = (msg) => {
     state.replyTo = {
       id: msg.id,
       sender_name: msg.sender_name,
-      body: msg.body,
+      body: previewTextForMessage(msg),
     };
     replyToNameEl.textContent = `Replying to ${msg.sender_name}`;
-    replyToBodyEl.textContent = msg.body.length > 120 ? `${msg.body.slice(0, 120)}...` : msg.body;
+    const preview = previewTextForMessage(msg);
+    replyToBodyEl.textContent = preview.length > 120 ? `${preview.slice(0, 120)}...` : preview;
     replyPreviewEl.classList.remove("hidden");
     messageInputEl.focus();
   };
@@ -203,6 +237,53 @@
     wrapper.addEventListener("dblclick", () => setReplyTarget(msg));
   };
 
+  const updateMessageStatus = (messageId, status) => {
+    const el = messagesEl.querySelector(`[data-status-for="${messageId}"]`);
+    if (!el) {
+      return;
+    }
+
+    if (status === "read") {
+      el.classList.remove("tick-gray");
+      el.classList.add("tick-blue");
+      el.dataset.status = "read";
+      el.textContent = "✓✓";
+      return;
+    }
+
+    el.classList.remove("tick-blue");
+    el.classList.add("tick-gray");
+    el.dataset.status = "delivered";
+    el.textContent = "✓✓";
+  };
+
+  const updateImageMessageVisual = (msg) => {
+    const wrapper = messagesEl.querySelector(`[data-message-id="${msg.id}"]`);
+    if (!wrapper) {
+      return;
+    }
+
+    const openBtn = wrapper.querySelector(".message-image-btn");
+    const statusEl = wrapper.querySelector(".message-image-status");
+    const isSelf = msg.sender_id === bootstrap.userId;
+
+    if (statusEl) {
+      if (msg.is_opened) {
+        const openedAt = msg.opened_at
+          ? new Date(msg.opened_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          : "now";
+        statusEl.textContent = isSelf ? `Opened at ${openedAt}` : "Opened";
+      } else {
+        statusEl.textContent = isSelf ? "Waiting for recipient to open" : "Not opened yet";
+      }
+    }
+
+    if (openBtn) {
+      openBtn.disabled = isSelf || !!msg.is_opened;
+      openBtn.textContent = msg.is_opened ? "Opened" : "Open Image";
+    }
+  };
+
   const renderMessage = (msg, isSelf) => {
     const wrapper = document.createElement("article");
     wrapper.className = `message-bubble ${isSelf ? "message-self" : "message-other"}`;
@@ -225,10 +306,42 @@
       wrapper.appendChild(quote);
     }
 
-    const text = document.createElement("p");
-    text.className = "message-text";
-    text.textContent = msg.body;
-    wrapper.appendChild(text);
+    if (msg.message_type === "one_time_image") {
+      const imageCard = document.createElement("div");
+      imageCard.className = "message-image-card";
+
+      const caption = document.createElement("p");
+      caption.className = "message-image-caption";
+      caption.textContent = formatViewMode(msg);
+      imageCard.appendChild(caption);
+
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.className = "message-image-btn";
+      openBtn.textContent = "Open Image";
+      openBtn.disabled = isSelf || !!msg.is_opened;
+      openBtn.addEventListener("click", () => {
+        state.socket?.send(
+          JSON.stringify({
+            action: "image_open",
+            message_id: msg.id,
+          })
+        );
+      });
+      imageCard.appendChild(openBtn);
+
+      const statusText = document.createElement("p");
+      statusText.className = "message-image-status";
+      statusText.textContent = isSelf ? "Waiting for recipient to open" : "Not opened yet";
+      imageCard.appendChild(statusText);
+
+      wrapper.appendChild(imageCard);
+    } else {
+      const text = document.createElement("p");
+      text.className = "message-text";
+      text.textContent = msg.body;
+      wrapper.appendChild(text);
+    }
 
     const metaRow = document.createElement("div");
     metaRow.className = "message-meta-row";
@@ -251,27 +364,10 @@
     bindSwipeReply(wrapper, msg, isSelf);
 
     messagesEl.appendChild(wrapper);
+    if (msg.message_type === "one_time_image") {
+      updateImageMessageVisual(msg);
+    }
     messagesEl.scrollTop = messagesEl.scrollHeight;
-  };
-
-  const updateMessageStatus = (messageId, status) => {
-    const el = messagesEl.querySelector(`[data-status-for="${messageId}"]`);
-    if (!el) {
-      return;
-    }
-
-    if (status === "read") {
-      el.classList.remove("tick-gray");
-      el.classList.add("tick-blue");
-      el.dataset.status = "read";
-      el.textContent = "✓✓";
-      return;
-    }
-
-    el.classList.remove("tick-blue");
-    el.classList.add("tick-gray");
-    el.dataset.status = "delivered";
-    el.textContent = "✓✓";
   };
 
   const sendTyping = (isTyping) => {
@@ -303,6 +399,116 @@
 
     const name = typingUsers[0].display_name;
     typingIndicatorEl.textContent = `${name} is typing...`;
+  };
+
+  const resetSelectedImage = () => {
+    state.selectedImage = null;
+    imageInputEl.value = "";
+    selectedImageMetaEl.textContent = "";
+  };
+
+  const refreshSelectedImageMeta = () => {
+    if (!state.selectedImage) {
+      selectedImageMetaEl.textContent = "";
+      return;
+    }
+    const mode = imageModeSelectEl.value;
+    if (mode === "timed_one_time_seen") {
+      selectedImageMetaEl.textContent = `${state.selectedImage.name} • ${imageSecondsInputEl.value || 0}s timed one-time`;
+      return;
+    }
+    selectedImageMetaEl.textContent = `${state.selectedImage.name} • one-time seen`;
+  };
+
+  const updateImageModeUI = () => {
+    const timed = imageModeSelectEl.value === "timed_one_time_seen";
+    imageSecondsWrapEl.classList.toggle("hidden", !timed);
+    refreshSelectedImageMeta();
+  };
+
+  const openImageComposerModal = () => {
+    imageComposerModalEl.classList.remove("hidden");
+    updateImageModeUI();
+  };
+
+  const closeImageComposerModal = () => {
+    imageComposerModalEl.classList.add("hidden");
+  };
+
+  const stopActiveImageTimer = () => {
+    if (state.activeImageView?.timerId) {
+      clearInterval(state.activeImageView.timerId);
+    }
+  };
+
+  const closeImageModal = (consume = true) => {
+    if (!state.activeImageView) {
+      return;
+    }
+
+    const messageId = state.activeImageView.messageId;
+    stopActiveImageTimer();
+    state.activeImageView = null;
+
+    oneTimeImageModalEl.classList.add("hidden");
+    oneTimeImageViewEl.removeAttribute("src");
+    oneTimeImageTimerEl.textContent = "";
+
+    if (consume && state.socket?.readyState === WebSocket.OPEN) {
+      const localMessage = state.messages.get(messageId);
+      if (localMessage && !localMessage.is_opened) {
+        localMessage.is_opened = true;
+        localMessage.opened_at = new Date().toISOString();
+        state.messages.set(messageId, localMessage);
+        updateImageMessageVisual(localMessage);
+      }
+      state.socket.send(
+        JSON.stringify({
+          action: "image_close",
+          message_id: messageId,
+        })
+      );
+    }
+  };
+
+  const openImageModal = (viewData) => {
+    if (state.activeImageView) {
+      closeImageModal(true);
+    }
+    stopActiveImageTimer();
+    state.activeImageView = {
+      messageId: viewData.message_id,
+      timerId: null,
+      remainingMs: (viewData.view_seconds || 0) * 1000,
+      mode: viewData.view_mode,
+    };
+
+    oneTimeImageViewEl.src = viewData.image_data_url;
+    oneTimeImageModalEl.classList.remove("hidden");
+
+    if (viewData.view_mode === "timed_one_time_seen") {
+      const updateTimerText = () => {
+        if (!state.activeImageView) {
+          return;
+        }
+        const seconds = Math.max(0, Math.ceil(state.activeImageView.remainingMs / 1000));
+        oneTimeImageTimerEl.textContent = `${seconds}s remaining`;
+      };
+      updateTimerText();
+      state.activeImageView.timerId = window.setInterval(() => {
+        if (!state.activeImageView) {
+          return;
+        }
+        state.activeImageView.remainingMs -= 200;
+        updateTimerText();
+        if (state.activeImageView.remainingMs <= 0) {
+          closeImageModal(true);
+        }
+      }, 200);
+      return;
+    }
+
+    oneTimeImageTimerEl.textContent = "Close to mark as opened";
   };
 
   const handlePayload = (data) => {
@@ -359,6 +565,8 @@
         if (!data.is_self) {
           state.typingUsers.delete(data.payload.sender_id);
           renderTypingIndicator();
+        }
+        if (!data.is_self && data.payload.message_type !== "one_time_image") {
           state.socket?.send(
             JSON.stringify({
               action: "message_read",
@@ -372,8 +580,32 @@
           updateMessageStatus(data.message_id, data.status);
         }
         break;
+      case "image_open_result":
+        if (data.message) {
+          state.messages.set(data.message.id, data.message);
+          updateImageMessageVisual(data.message);
+        }
+        if (data.view) {
+          openImageModal(data.view);
+        }
+        break;
+      case "image_opened":
+        state.messages.set(data.payload.id, data.payload);
+        updateImageMessageVisual(data.payload);
+        if (state.activeImageView?.messageId === data.payload.id) {
+          closeImageModal(false);
+        }
+        break;
       case "error":
-        setStatus("Error", true);
+        if (data.code === "image_already_opened") {
+          showSystemNote("Image already opened.");
+        } else if (data.code === "image_view_in_progress") {
+          showSystemNote("Image is currently being viewed.");
+        } else if (data.code === "invalid_view_seconds") {
+          showSystemNote("Set a time between 1 and 60 seconds.");
+        } else if (data.code === "invalid_image_payload") {
+          showSystemNote("Could not send image. Use png/jpg/webp/gif up to 5MB.");
+        }
         break;
       default:
         break;
@@ -440,7 +672,98 @@
   });
 
   cancelReplyBtn.addEventListener("click", clearReplyTarget);
+  openImageComposerBtn.addEventListener("click", openImageComposerModal);
+  closeImageComposerBtn.addEventListener("click", closeImageComposerModal);
+
+  imagePickerBtn.addEventListener("click", () => imageInputEl.click());
+
+  imageInputEl.addEventListener("change", () => {
+    const [file] = imageInputEl.files || [];
+    if (!file) {
+      resetSelectedImage();
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      showSystemNote("Please choose an image file.");
+      resetSelectedImage();
+      return;
+    }
+    if (file.size > maxImageUploadBytes) {
+      showSystemNote("Please choose an image up to 5MB.");
+      resetSelectedImage();
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        showSystemNote("Could not load image file.");
+        resetSelectedImage();
+        return;
+      }
+      state.selectedImage = {
+        dataUrl: result,
+        name: file.name,
+      };
+      refreshSelectedImageMeta();
+    };
+    reader.onerror = () => {
+      showSystemNote("Could not load image file.");
+      resetSelectedImage();
+    };
+    reader.readAsDataURL(file);
+  });
+
+  imageModeSelectEl.addEventListener("change", updateImageModeUI);
+  imageSecondsInputEl.addEventListener("input", refreshSelectedImageMeta);
+
+  sendImageBtn.addEventListener("click", () => {
+    if (!state.selectedImage) {
+      showSystemNote("Choose an image first.");
+      return;
+    }
+
+    const mode = imageModeSelectEl.value;
+    const payload = {
+      action: "image_send",
+      image_data_url: state.selectedImage.dataUrl,
+      view_mode: mode,
+    };
+
+    if (mode === "timed_one_time_seen") {
+      const seconds = Number.parseInt(imageSecondsInputEl.value || "0", 10);
+      payload.view_seconds = Number.isNaN(seconds) ? 0 : seconds;
+    }
+
+    state.socket?.send(JSON.stringify(payload));
+    resetSelectedImage();
+    clearReplyTarget();
+    closeImageComposerModal();
+  });
+
+  closeOneTimeImageBtn.addEventListener("click", () => closeImageModal(true));
+  oneTimeImageModalEl.addEventListener("click", (event) => {
+    if (event.target === oneTimeImageModalEl) {
+      closeImageModal(true);
+    }
+  });
+  imageComposerModalEl.addEventListener("click", (event) => {
+    if (event.target === imageComposerModalEl) {
+      closeImageComposerModal();
+    }
+  });
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.activeImageView) {
+      closeImageModal(true);
+      return;
+    }
+    if (event.key === "Escape" && !imageComposerModalEl.classList.contains("hidden")) {
+      closeImageComposerModal();
+    }
+  });
 
   setStatus("Connecting", false);
+  updateImageModeUI();
   connectSocket();
 })();

@@ -9,7 +9,11 @@ from typing import Any
 from django.conf import settings
 from redis.asyncio import Redis
 
-from chatcore.constants import DEFAULT_SINGLE_USER_DISCOVERABLE, MAX_ROOM_PARTICIPANTS
+from chatcore.constants import (
+    DEFAULT_SINGLE_USER_DISCOVERABLE,
+    MAX_ROOM_PARTICIPANTS,
+    TIMED_ONE_TIME_IMAGE_MODE,
+)
 
 
 @dataclass(slots=True)
@@ -21,6 +25,7 @@ class ServiceResult:
 
 class RoomStateService:
     _redis: Redis | None = None
+    _ONE_TIME_IMAGE_TTL_SECONDS = 60 * 60 * 12
 
     @classmethod
     def redis(cls) -> Redis:
@@ -71,6 +76,14 @@ class RoomStateService:
     @classmethod
     def permit_key(cls, room_id: str, user_id: str) -> str:
         return f"{cls.prefix()}:room:{room_id}:permit:{user_id}"
+
+    @classmethod
+    def one_time_images_key(cls, room_id: str) -> str:
+        return f"{cls.prefix()}:room:{room_id}:one_time_images"
+
+    @classmethod
+    def one_time_image_key(cls, room_id: str, message_id: str) -> str:
+        return f"{cls.prefix()}:room:{room_id}:one_time_image:{message_id}"
 
     @staticmethod
     def utc_now() -> str:
@@ -298,6 +311,7 @@ class RoomStateService:
     async def delete_room(cls, room_id: str) -> None:
         redis = cls.redis()
         request_ids = await redis.smembers(cls.pending_requests_key(room_id))
+        image_ids = await redis.smembers(cls.one_time_images_key(room_id))
         pipe = redis.pipeline()
         pipe.srem(cls.discoverable_rooms_key(), room_id)
         pipe.delete(cls.room_key(room_id))
@@ -305,8 +319,11 @@ class RoomStateService:
         pipe.delete(cls.participant_meta_key(room_id))
         pipe.delete(cls.presence_key(room_id))
         pipe.delete(cls.pending_requests_key(room_id))
+        pipe.delete(cls.one_time_images_key(room_id))
         for request_id in request_ids:
             pipe.delete(cls.pending_request_key(room_id, request_id))
+        for image_id in image_ids:
+            pipe.delete(cls.one_time_image_key(room_id, image_id))
         await pipe.execute()
 
     @classmethod
@@ -412,3 +429,161 @@ class RoomStateService:
         )
         snapshot = await cls.sync_visibility(room_id)
         return ServiceResult(ok=True, code="updated", data={"room": snapshot})
+
+    @classmethod
+    async def create_one_time_image(
+        cls,
+        room_id: str,
+        sender_id: str,
+        sender_name: str,
+        image_data_url: str,
+        mime_type: str,
+        view_mode: str,
+        view_seconds: int | None,
+    ) -> ServiceResult:
+        redis = cls.redis()
+        if not await redis.exists(cls.room_key(room_id)):
+            return ServiceResult(ok=False, code="room_not_found")
+        if not await redis.sismember(cls.participants_key(room_id), sender_id):
+            return ServiceResult(ok=False, code="forbidden")
+
+        message_id = secrets.token_urlsafe(10)
+        payload = {
+            "id": message_id,
+            "message_type": "one_time_image",
+            "sender_id": sender_id,
+            "sender_name": sender_name,
+            "sent_at": cls.utc_now(),
+            "image_data_url": image_data_url,
+            "mime_type": mime_type,
+            "view_mode": view_mode,
+            "view_seconds": int(view_seconds) if view_mode == TIMED_ONE_TIME_IMAGE_MODE else None,
+            "opened_at": None,
+            "opened_by": None,
+            "active_viewer_id": None,
+            "active_view_started_at": None,
+            "preview_text": (
+                "Timed one-time image"
+                if view_mode == TIMED_ONE_TIME_IMAGE_MODE
+                else "One-time image"
+            ),
+        }
+
+        pipe = redis.pipeline()
+        pipe.set(
+            cls.one_time_image_key(room_id, message_id),
+            json.dumps(payload),
+            ex=cls._ONE_TIME_IMAGE_TTL_SECONDS,
+        )
+        pipe.sadd(cls.one_time_images_key(room_id), message_id)
+        await pipe.execute()
+
+        return ServiceResult(ok=True, code="created", data={"message": cls._image_public_payload(payload)})
+
+    @classmethod
+    async def get_one_time_image_for_view(
+        cls,
+        room_id: str,
+        message_id: str,
+        viewer_id: str,
+    ) -> ServiceResult:
+        redis = cls.redis()
+        if not await redis.exists(cls.room_key(room_id)):
+            return ServiceResult(ok=False, code="room_not_found")
+        if not await redis.sismember(cls.participants_key(room_id), viewer_id):
+            return ServiceResult(ok=False, code="forbidden")
+
+        key = cls.one_time_image_key(room_id, message_id)
+        raw_payload = await redis.get(key)
+        if not raw_payload:
+            return ServiceResult(ok=False, code="image_not_found")
+
+        payload = json.loads(raw_payload)
+        if payload["sender_id"] == viewer_id:
+            return ServiceResult(ok=False, code="sender_cannot_open")
+        if payload["opened_at"]:
+            return ServiceResult(ok=False, code="image_already_opened")
+
+        active_viewer_id = payload.get("active_viewer_id")
+        if active_viewer_id and active_viewer_id != viewer_id:
+            return ServiceResult(ok=False, code="image_view_in_progress")
+
+        payload["active_viewer_id"] = viewer_id
+        payload["active_view_started_at"] = cls.utc_now()
+        await redis.set(key, json.dumps(payload), ex=cls._ONE_TIME_IMAGE_TTL_SECONDS)
+
+        return ServiceResult(
+            ok=True,
+            code="open_granted",
+            data={
+                "message": cls._image_public_payload(payload),
+                "view": {
+                    "message_id": payload["id"],
+                    "image_data_url": payload["image_data_url"],
+                    "mime_type": payload["mime_type"],
+                    "view_mode": payload["view_mode"],
+                    "view_seconds": payload["view_seconds"],
+                    "opened_at": payload["opened_at"],
+                },
+            },
+        )
+
+    @classmethod
+    async def consume_one_time_image(
+        cls,
+        room_id: str,
+        message_id: str,
+        viewer_id: str,
+    ) -> ServiceResult:
+        redis = cls.redis()
+        if not await redis.exists(cls.room_key(room_id)):
+            return ServiceResult(ok=False, code="room_not_found")
+        if not await redis.sismember(cls.participants_key(room_id), viewer_id):
+            return ServiceResult(ok=False, code="forbidden")
+
+        key = cls.one_time_image_key(room_id, message_id)
+        raw_payload = await redis.get(key)
+        if not raw_payload:
+            return ServiceResult(ok=False, code="image_not_found")
+        payload = json.loads(raw_payload)
+
+        if payload["sender_id"] == viewer_id:
+            return ServiceResult(ok=False, code="sender_cannot_open")
+        if payload["opened_at"]:
+            return ServiceResult(
+                ok=True,
+                code="already_opened",
+                data={"message": cls._image_public_payload(payload)},
+            )
+
+        active_viewer_id = payload.get("active_viewer_id")
+        if active_viewer_id and active_viewer_id != viewer_id:
+            return ServiceResult(ok=False, code="forbidden")
+
+        payload["opened_at"] = cls.utc_now()
+        payload["opened_by"] = viewer_id
+        payload["active_viewer_id"] = None
+        payload["active_view_started_at"] = None
+        await redis.set(key, json.dumps(payload), ex=cls._ONE_TIME_IMAGE_TTL_SECONDS)
+
+        return ServiceResult(
+            ok=True,
+            code="opened",
+            data={"message": cls._image_public_payload(payload)},
+        )
+
+    @classmethod
+    def _image_public_payload(cls, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": payload["id"],
+            "message_type": payload["message_type"],
+            "sender_id": payload["sender_id"],
+            "sender_name": payload["sender_name"],
+            "sent_at": payload["sent_at"],
+            "view_mode": payload["view_mode"],
+            "view_seconds": payload["view_seconds"],
+            "opened_at": payload["opened_at"],
+            "opened_by": payload["opened_by"],
+            "is_opened": bool(payload["opened_at"]),
+            "preview_text": payload["preview_text"],
+        }
