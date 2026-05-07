@@ -4,6 +4,8 @@
   const roomCountEl = document.getElementById("roomCount");
   const createRoomBtn = document.getElementById("createRoomBtn");
   const bannerEl = document.getElementById("notificationBanner");
+  const connectionEl = document.getElementById("lobbyConnection");
+  const selfNamePillEl = document.getElementById("selfNamePill");
 
   const state = {
     rooms: new Map(),
@@ -11,22 +13,97 @@
   };
 
   const bootstrap = window.CHAT_BOOTSTRAP;
+  selfNamePillEl.textContent = bootstrap.userName;
+
+  const setConnection = (label, isOffline = false) => {
+    connectionEl.textContent = label;
+    connectionEl.dataset.state = isOffline ? "offline" : "online";
+  };
 
   const showBanner = (text, isError = false) => {
-    bannerEl.classList.remove("hidden");
+    bannerEl.classList.remove("hidden", "notice-error");
     bannerEl.textContent = text;
-    bannerEl.classList.toggle("border-rose-400", isError);
-    bannerEl.classList.toggle("bg-rose-50", isError);
-    bannerEl.classList.toggle("text-rose-800", isError);
-    if (!isError) {
-      bannerEl.classList.remove("text-rose-800", "bg-rose-50", "border-rose-400");
+    if (isError) {
+      bannerEl.classList.add("notice-error");
     }
+
     window.setTimeout(() => {
       bannerEl.classList.add("hidden");
     }, 4500);
   };
 
   const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+
+  const createRoomCard = (room) => {
+    const canRequestJoin = room.owner_id !== bootstrap.userId && !room.is_full;
+    const participantNames = room.participants.map((p) => p.display_name).join(", ") || "Waiting";
+
+    const card = document.createElement("article");
+    card.className = "room-card";
+
+    const topRow = document.createElement("div");
+    topRow.className = "flex items-start justify-between gap-2";
+
+    const left = document.createElement("div");
+    const roomIdEl = document.createElement("p");
+    roomIdEl.className = "room-id";
+    roomIdEl.textContent = room.id;
+    const titleEl = document.createElement("h3");
+    titleEl.className = "room-title";
+    titleEl.textContent = `${room.owner_name}'s room`;
+    left.appendChild(roomIdEl);
+    left.appendChild(titleEl);
+
+    const status = document.createElement("span");
+    status.className = "status-dot";
+    status.textContent = room.is_full ? "Full" : "Open";
+
+    topRow.appendChild(left);
+    topRow.appendChild(status);
+
+    const metaGrid = document.createElement("div");
+    metaGrid.className = "room-meta-grid";
+
+    const online = document.createElement("div");
+    online.className = "room-meta";
+    online.innerHTML = `Online <strong>${room.online_count}/2</strong>`;
+
+    const access = document.createElement("div");
+    access.className = "room-meta";
+    access.innerHTML = `Access <strong>${room.is_full ? "Locked" : "Invite"}</strong>`;
+
+    metaGrid.appendChild(online);
+    metaGrid.appendChild(access);
+
+    const participants = document.createElement("p");
+    participants.className = "room-participants";
+    participants.textContent = `Participants: ${participantNames}`;
+
+    const actions = document.createElement("div");
+    actions.className = "room-actions";
+
+    if (canRequestJoin) {
+      const joinBtn = document.createElement("button");
+      joinBtn.type = "button";
+      joinBtn.dataset.roomId = room.id;
+      joinBtn.className = "btn-secondary join-btn";
+      joinBtn.textContent = "Request Join";
+      actions.appendChild(joinBtn);
+    } else {
+      const openLink = document.createElement("a");
+      openLink.href = `/room/${room.id}/`;
+      openLink.className = "btn-secondary btn-link-like";
+      openLink.textContent = "Open Room";
+      actions.appendChild(openLink);
+    }
+
+    card.appendChild(topRow);
+    card.appendChild(metaGrid);
+    card.appendChild(participants);
+    card.appendChild(actions);
+
+    return card;
+  };
 
   const renderRooms = () => {
     const rooms = [...state.rooms.values()].sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
@@ -41,34 +118,17 @@
     emptyStateEl.classList.add("hidden");
 
     rooms.forEach((room) => {
-      const canRequestJoin = room.owner_id !== bootstrap.userId && !room.is_full;
-      const participantNames = room.participants.map((p) => p.display_name).join(", ");
-
-      const container = document.createElement("article");
-      container.className = "room-item";
-      container.innerHTML = `
-        <div class="flex items-start justify-between gap-2">
-          <div>
-            <p class="font-mono text-xs text-slate-500">${room.id}</p>
-            <h3 class="mt-1 text-sm font-semibold text-slate-800">${room.owner_name}'s room</h3>
-          </div>
-          <span class="status-pill">${room.is_full ? "Full" : "Open"}</span>
-        </div>
-        <p class="mt-2 text-xs text-slate-500">Online: ${room.online_count} / 2</p>
-        <p class="mt-1 text-xs text-slate-500">Participants: ${participantNames || "Waiting"}</p>
-        <div class="mt-3 flex items-center gap-2">
-          ${canRequestJoin ? `<button data-room-id="${room.id}" class="btn-secondary join-btn">Request Join</button>` : `<a class="btn-secondary text-center" href="/room/${room.id}/">Open</a>`}
-        </div>
-      `;
-      roomListEl.appendChild(container);
+      roomListEl.appendChild(createRoomCard(room));
     });
 
     roomListEl.querySelectorAll(".join-btn").forEach((button) => {
       button.addEventListener("click", () => {
-        state.socket?.send(JSON.stringify({
-          action: "join_room_request",
-          room_id: button.dataset.roomId,
-        }));
+        state.socket?.send(
+          JSON.stringify({
+            action: "join_room_request",
+            room_id: button.dataset.roomId,
+          })
+        );
       });
     });
   };
@@ -77,6 +137,7 @@
     state.socket = new WebSocket(`${wsProtocol}://${window.location.host}/ws/lobby/`);
 
     state.socket.onopen = () => {
+      setConnection("Live", false);
       createRoomBtn.disabled = false;
     };
 
@@ -99,7 +160,7 @@
           renderRooms();
           break;
         case "join_request_sent":
-          showBanner("Join request sent. Waiting for owner approval.");
+          showBanner("Join request sent. Waiting for approval.");
           break;
         case "notification":
           if (data.payload.kind === "join_decision") {
@@ -122,9 +183,10 @@
     };
 
     state.socket.onclose = () => {
+      setConnection("Offline", true);
       createRoomBtn.disabled = true;
       showBanner("Connection dropped. Reconnecting...", true);
-      setTimeout(connectSocket, 1200);
+      window.setTimeout(connectSocket, 1200);
     };
   };
 
@@ -133,5 +195,6 @@
     state.socket?.send(JSON.stringify({ action: "create_room" }));
   });
 
+  setConnection("Connecting", false);
   connectSocket();
 })();

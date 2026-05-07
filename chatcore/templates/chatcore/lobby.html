@@ -8,52 +8,73 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'chatcore/css/app.css' %}">
 </head>
 <body class="app-bg text-slate-900 min-h-screen">
-  <main class="mx-auto w-full max-w-md px-4 pt-5 pb-8">
-    <section class="glass-card mb-4">
-      <div class="flex items-center justify-between gap-3">
-        <h1 class="brand-title">PulsePair</h1>
-        <span class="status-pill">Live Lobby</span>
+  <div class="ambient-shape ambient-shape-a"></div>
+  <div class="ambient-shape ambient-shape-b"></div>
+
+  <main class="app-shell mx-auto w-full max-w-md px-4 pt-5 pb-8">
+    <section class="hero-card reveal-up">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="eyebrow">Private Realtime Chat</p>
+          <h1 class="brand-title mt-1">PulsePair</h1>
+        </div>
+        <span id="lobbyConnection" class="status-dot">Connecting</span>
       </div>
-      <p class="mt-2 text-sm text-slate-600">Private two-person rooms with real-time invite approval.</p>
+      <p class="hero-copy mt-3">Two-person, permissioned rooms with instant updates and clean ephemeral sessions.</p>
+      <div class="hero-grid mt-4">
+        <div class="hero-stat">
+          <p class="hero-stat-label">Identity</p>
+          <p class="hero-stat-value" id="selfNamePill">{{ user_name }}</p>
+        </div>
+        <div class="hero-stat">
+          <p class="hero-stat-label">Live Rooms</p>
+          <p class="hero-stat-value" id="roomCount">0 rooms</p>
+        </div>
+      </div>
     </section>
 
-    <section class="glass-card mb-4">
+    <section class="surface-card reveal-up" style="animation-delay:.05s">
       <form action="{% url 'update_identity' %}" method="post" class="space-y-3">
         {% csrf_token %}
-        <label class="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Display Name</label>
-        <div class="flex gap-2">
+        <label class="field-label">Display Name</label>
+        <div class="field-row">
           <input
             type="text"
             name="display_name"
             minlength="3"
             maxlength="24"
             value="{{ user_name }}"
-            class="flex-1 rounded-xl border border-[#d9e94b]/60 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#a7cd18]"
+            class="input-main"
             required
           />
           <button class="btn-secondary" type="submit">Save</button>
         </div>
       </form>
-      <p class="mt-2 text-xs text-slate-500">Your id: <span class="font-mono">{{ user_id }}</span></p>
+      <p class="meta-text mt-2">Session: <span class="meta-mono">{{ user_id }}</span></p>
     </section>
 
-    <section class="glass-card mb-4">
-      <button id="createRoomBtn" class="btn-primary w-full" type="button">Create New Room</button>
-      <p class="mt-2 text-xs text-slate-500">Rooms appear to everyone only while at least one participant stays online.</p>
+    <section class="surface-card reveal-up" style="animation-delay:.1s">
+      <button id="createRoomBtn" class="btn-primary w-full" type="button">
+        <span class="btn-main">Create Room</span>
+        <span class="btn-sub">Start instantly and invite one participant</span>
+      </button>
+      <p class="meta-text mt-3">Rooms appear and disappear in realtime based on online presence.</p>
     </section>
 
-    <section class="glass-card">
+    <section class="surface-card reveal-up" style="animation-delay:.15s">
       <div class="mb-3 flex items-center justify-between">
-        <h2 class="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600">Available Rooms</h2>
-        <span id="roomCount" class="text-xs text-slate-500">0 rooms</span>
+        <h2 class="section-title">Available Rooms</h2>
       </div>
-      <div id="notificationBanner" class="hidden mb-3 rounded-xl border border-[#a7cd18]/40 bg-[#f7ffdb] px-3 py-2 text-xs"></div>
+      <div id="notificationBanner" class="notice-banner hidden mb-3"></div>
       <div id="roomList" class="space-y-2"></div>
-      <p id="emptyState" class="text-sm text-slate-500">No active rooms right now. Create one to start.</p>
+      <div id="emptyState" class="empty-state">
+        <p class="empty-title">No active rooms yet</p>
+        <p class="empty-copy">Create one room and invite someone to start chatting.</p>
+      </div>
     </section>
   </main>
 

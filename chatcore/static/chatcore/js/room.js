@@ -28,13 +28,14 @@
     typingTimer: null,
   };
 
-  const setStatus = (text) => {
+  const setStatus = (text, isOffline = false) => {
     roomStatusPill.textContent = text;
+    roomStatusPill.dataset.state = isOffline ? "offline" : "online";
   };
 
   const autoGrow = () => {
     messageInputEl.style.height = "auto";
-    messageInputEl.style.height = `${Math.min(messageInputEl.scrollHeight, 140)}px`;
+    messageInputEl.style.height = `${Math.min(messageInputEl.scrollHeight, 130)}px`;
   };
 
   const showSystemNote = (text) => {
@@ -74,9 +75,8 @@
     state.room.participants.forEach((user) => {
       const isOwner = user.user_id === state.room.owner_id;
       const badge = document.createElement("span");
-      badge.className = "rounded-full border px-3 py-1 text-xs font-medium";
-      badge.classList.add(user.is_online ? "border-[#86b416] bg-[#f7ffdb]" : "border-slate-300 bg-slate-100");
-      badge.textContent = `${user.display_name}${isOwner ? " (host)" : ""}${user.is_online ? " • online" : " • offline"}`;
+      badge.className = `participant-chip ${user.is_online ? "participant-chip-online" : "participant-chip-offline"}`;
+      badge.textContent = `${user.display_name}${isOwner ? " (host)" : ""}${user.is_online ? " - online" : " - offline"}`;
       participantsEl.appendChild(badge);
     });
   };
@@ -93,24 +93,27 @@
 
     state.requests.forEach((request) => {
       const box = document.createElement("div");
-      box.className = "rounded-xl border border-[#d9e94b]/70 bg-white p-3";
+      box.className = "request-card";
+
       const label = document.createElement("p");
-      label.className = "text-sm font-semibold";
-      label.textContent = `${request.requester_name} wants to join.`;
+      label.className = "request-title";
+      label.textContent = `${request.requester_name} wants to join this room.`;
 
       const actions = document.createElement("div");
-      actions.className = "mt-2 flex gap-2";
+      actions.className = "request-actions";
+
       const approveBtn = document.createElement("button");
       approveBtn.className = "btn-primary approve-btn";
       approveBtn.dataset.requestId = request.request_id;
-      approveBtn.textContent = "Approve";
+      approveBtn.innerHTML = '<span class="btn-main">Approve</span>';
+
       const rejectBtn = document.createElement("button");
       rejectBtn.className = "btn-secondary reject-btn";
       rejectBtn.dataset.requestId = request.request_id;
       rejectBtn.textContent = "Reject";
+
       actions.appendChild(approveBtn);
       actions.appendChild(rejectBtn);
-
       box.appendChild(label);
       box.appendChild(actions);
       joinRequestsEl.appendChild(box);
@@ -208,19 +211,22 @@
     if (msg.reply_to) {
       const quote = document.createElement("div");
       quote.className = "reply-quote";
+
       const quoteName = document.createElement("p");
       quoteName.className = "text-[11px] font-semibold text-[#395308]";
       quoteName.textContent = msg.reply_to.sender_name;
+
       const quoteBody = document.createElement("p");
       quoteBody.className = "text-xs text-slate-600";
       quoteBody.textContent = msg.reply_to.body;
+
       quote.appendChild(quoteName);
       quote.appendChild(quoteBody);
       wrapper.appendChild(quote);
     }
 
     const text = document.createElement("p");
-    text.className = "text-sm";
+    text.className = "message-text";
     text.textContent = msg.body;
     wrapper.appendChild(text);
 
@@ -304,14 +310,14 @@
       case "room_init":
         state.room = data.room;
         state.ownerId = data.room.owner_id;
-        setStatus(data.room.online_count > 1 ? "Live" : "Waiting");
+        setStatus(data.room.online_count > 1 ? "Live" : "Waiting", false);
         discoverableToggleEl.checked = !!data.room.discoverable_when_single;
         renderParticipants();
         renderJoinRequests();
         break;
       case "room_presence":
         state.room = data.room;
-        setStatus(data.room.online_count > 1 ? "Live" : "Waiting");
+        setStatus(data.room.online_count > 1 ? "Live" : "Waiting", false);
         discoverableToggleEl.checked = !!data.room.discoverable_when_single;
         renderParticipants();
         renderJoinRequests();
@@ -367,7 +373,7 @@
         }
         break;
       case "error":
-        setStatus(`Error: ${data.code}`);
+        setStatus("Error", true);
         break;
       default:
         break;
@@ -378,12 +384,12 @@
     state.socket = new WebSocket(`${wsProtocol}://${window.location.host}/ws/room/${bootstrap.roomId}/`);
 
     state.socket.onopen = () => {
-      setStatus("Connected");
+      setStatus("Connected", false);
       sendTyping(false);
     };
     state.socket.onmessage = (event) => handlePayload(JSON.parse(event.data));
     state.socket.onclose = () => {
-      setStatus("Disconnected");
+      setStatus("Offline", true);
       state.typingUsers.clear();
       renderTypingIndicator();
       window.setTimeout(connectSocket, 1200);
@@ -435,5 +441,6 @@
 
   cancelReplyBtn.addEventListener("click", clearReplyTarget);
 
+  setStatus("Connecting", false);
   connectSocket();
 })();
