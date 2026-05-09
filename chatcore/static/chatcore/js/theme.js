@@ -2,6 +2,8 @@
   const THEME_KEY = "pulsepair-theme";
   const root = document.documentElement;
   const toggles = document.querySelectorAll("#themeToggleBtn");
+  const THEME_DARK = "dark";
+  const THEME_LIGHT = "light";
 
   const getStoredTheme = () => {
     try {
@@ -19,32 +21,35 @@
     }
   };
 
-  const isDark = () => root.dataset.theme === "dark";
+  const isDark = () => root.dataset.theme === THEME_DARK;
 
   const updateToggleLabels = () => {
     const dark = isDark();
     toggles.forEach((button) => {
       button.textContent = dark ? "Light" : "Dark";
       button.setAttribute("aria-pressed", dark ? "true" : "false");
+      button.dataset.mode = dark ? THEME_DARK : THEME_LIGHT;
     });
   };
 
   const applyTheme = (theme) => {
-    if (theme === "dark") {
-      root.dataset.theme = "dark";
-      saveTheme("dark");
+    if (theme === THEME_DARK) {
+      root.dataset.theme = THEME_DARK;
+      saveTheme(THEME_DARK);
+      root.style.colorScheme = THEME_DARK;
     } else {
       delete root.dataset.theme;
-      saveTheme("light");
+      saveTheme(THEME_LIGHT);
+      root.style.colorScheme = THEME_LIGHT;
     }
     updateToggleLabels();
   };
 
   toggles.forEach((button) => {
     button.addEventListener("click", () => {
-      applyTheme(isDark() ? "light" : "dark");
+      applyTheme(isDark() ? THEME_LIGHT : THEME_DARK);
     });
   });
 
-  applyTheme(getStoredTheme() === "dark" ? "dark" : "light");
+  applyTheme(getStoredTheme() === THEME_DARK ? THEME_DARK : THEME_LIGHT);
 })();

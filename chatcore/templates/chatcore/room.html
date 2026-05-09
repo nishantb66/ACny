@@ -29,14 +29,14 @@
 
   <main class="chat-shell mx-auto flex min-h-screen w-full flex-col px-4 pt-4 pb-4">
     <header class="chat-header reveal-up">
-      <div class="flex items-center justify-between gap-2">
-        <div class="flex items-center gap-2">
+      <div class="room-top-row">
+        <div class="room-top-left">
           <a href="/" class="ghost-link">Back</a>
           <button id="inviteWhatsappBtn" type="button" class="btn-secondary btn-invite-compact">Invite WhatsApp</button>
         </div>
-        <div class="flex items-center gap-2">
-          <button id="themeToggleBtn" type="button" class="btn-secondary btn-theme-toggle" aria-label="Toggle dark mode">Dark</button>
+        <div class="room-top-right">
           <span class="status-dot" id="roomStatusPill">Connecting</span>
+          <button id="themeToggleBtn" type="button" class="theme-toggle-btn" aria-label="Toggle dark mode">Dark</button>
         </div>
       </div>
       <div class="mt-3 flex items-start justify-between gap-3">
