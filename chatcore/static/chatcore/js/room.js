@@ -190,15 +190,17 @@
     });
   };
 
-  const bindSwipeReply = (wrapper, msg, isSelf) => {
+  const bindReplyGesture = (wrapper, msg, isSelf) => {
     if (isSelf) {
       return;
     }
 
     let startX = 0;
     let startY = 0;
-    let dx = 0;
-    let active = false;
+    let moved = false;
+    let lastTapAt = 0;
+    const maxTapTravel = 10;
+    const maxTapGapMs = 330;
 
     wrapper.addEventListener(
       "touchstart",
@@ -208,8 +210,7 @@
         }
         startX = event.touches[0].clientX;
         startY = event.touches[0].clientY;
-        dx = 0;
-        active = true;
+        moved = false;
       },
       { passive: true }
     );
@@ -217,33 +218,32 @@
     wrapper.addEventListener(
       "touchmove",
       (event) => {
-        if (!active || !event.touches.length) {
+        if (!event.touches.length) {
           return;
         }
-
-        dx = event.touches[0].clientX - startX;
+        const dx = event.touches[0].clientX - startX;
         const dy = event.touches[0].clientY - startY;
-
-        if (dx > 0 && Math.abs(dx) > Math.abs(dy)) {
-          wrapper.classList.add("message-swipe-active");
-          wrapper.style.transform = `translateX(${Math.min(dx, 48)}px)`;
+        if (Math.abs(dx) > maxTapTravel || Math.abs(dy) > maxTapTravel) {
+          moved = true;
         }
       },
       { passive: true }
     );
 
-    wrapper.addEventListener("touchend", () => {
-      if (!active) {
+    wrapper.addEventListener("touchend", (event) => {
+      if (moved) {
         return;
       }
-      active = false;
-
-      if (dx > 36) {
-        setReplyTarget(msg);
+      if (event.target.closest("button, a, input, textarea, select, label")) {
+        return;
       }
-
-      wrapper.classList.remove("message-swipe-active");
-      wrapper.style.transform = "translateX(0)";
+      const now = Date.now();
+      if (now - lastTapAt <= maxTapGapMs) {
+        setReplyTarget(msg);
+        lastTapAt = 0;
+        return;
+      }
+      lastTapAt = now;
     });
 
     wrapper.addEventListener("dblclick", () => setReplyTarget(msg));
@@ -306,11 +306,11 @@
       quote.className = "reply-quote";
 
       const quoteName = document.createElement("p");
-      quoteName.className = "text-[11px] font-semibold text-[#395308]";
+      quoteName.className = "reply-quote-name";
       quoteName.textContent = msg.reply_to.sender_name;
 
       const quoteBody = document.createElement("p");
-      quoteBody.className = "text-xs text-slate-600";
+      quoteBody.className = "reply-quote-body";
       quoteBody.textContent = msg.reply_to.body;
 
       quote.appendChild(quoteName);
@@ -359,7 +359,7 @@
     metaRow.className = "message-meta-row";
 
     const time = document.createElement("span");
-    time.className = "text-[11px] text-slate-500";
+    time.className = "message-time";
     time.textContent = new Date(msg.sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     metaRow.appendChild(time);
 
@@ -373,7 +373,7 @@
     }
 
     wrapper.appendChild(metaRow);
-    bindSwipeReply(wrapper, msg, isSelf);
+    bindReplyGesture(wrapper, msg, isSelf);
 
     messagesEl.appendChild(wrapper);
     if (msg.message_type === "one_time_image") {

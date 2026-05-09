@@ -5,24 +5,39 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Room {{ room_id }} | PulsePair</title>
+  <script>
+    (() => {
+      try {
+        const savedTheme = localStorage.getItem("pulsepair-theme");
+        if (savedTheme === "dark") {
+          document.documentElement.dataset.theme = "dark";
+        }
+      } catch (_error) {
+        // no-op
+      }
+    })();
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'chatcore/css/app.css' %}">
 </head>
-<body class="app-bg text-slate-900 min-h-screen">
+<body class="app-bg min-h-screen">
   <div class="ambient-shape ambient-shape-a"></div>
   <div class="ambient-shape ambient-shape-b"></div>
 
-  <main class="chat-shell mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pt-4 pb-4">
+  <main class="chat-shell mx-auto flex min-h-screen w-full flex-col px-4 pt-4 pb-4">
     <header class="chat-header reveal-up">
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <a href="/" class="ghost-link">Back</a>
           <button id="inviteWhatsappBtn" type="button" class="btn-secondary btn-invite-compact">Invite WhatsApp</button>
         </div>
-        <span class="status-dot" id="roomStatusPill">Connecting</span>
+        <div class="flex items-center gap-2">
+          <button id="themeToggleBtn" type="button" class="btn-secondary btn-theme-toggle" aria-label="Toggle dark mode">Dark</button>
+          <span class="status-dot" id="roomStatusPill">Connecting</span>
+        </div>
       </div>
       <div class="mt-3 flex items-start justify-between gap-3">
         <div>
@@ -31,9 +46,9 @@
         </div>
       </div>
 
-      <div class="mt-3 rounded-2xl border border-[#d9e94b]/55 bg-white/80 p-3">
+      <div class="discoverable-box mt-3 rounded-2xl p-3">
         <label class="flex items-center justify-between gap-3">
-          <span class="meta-text !text-[12px] !text-slate-700">Keep room discoverable when one participant remains</span>
+          <span class="meta-text discoverable-text">Keep room discoverable when one participant remains</span>
           <input id="discoverableToggle" type="checkbox" class="h-5 w-5 accent-[#86b416]" checked>
         </label>
       </div>
@@ -136,6 +151,7 @@
       userName: "{{ user_name|escapejs }}"
     };
   </script>
+  <script src="{% static 'chatcore/js/theme.js' %}"></script>
   <script src="{% static 'chatcore/js/room.js' %}"></script>
 </body>
 </html>

@@ -5,24 +5,39 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PulsePair Chat</title>
+  <script>
+    (() => {
+      try {
+        const savedTheme = localStorage.getItem("pulsepair-theme");
+        if (savedTheme === "dark") {
+          document.documentElement.dataset.theme = "dark";
+        }
+      } catch (_error) {
+        // no-op
+      }
+    })();
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'chatcore/css/app.css' %}">
 </head>
-<body class="app-bg text-slate-900 min-h-screen">
+<body class="app-bg min-h-screen">
   <div class="ambient-shape ambient-shape-a"></div>
   <div class="ambient-shape ambient-shape-b"></div>
 
-  <main class="app-shell mx-auto w-full max-w-md px-4 pt-5 pb-8">
+  <main class="app-shell mx-auto w-full px-4 pt-5 pb-8">
     <section class="hero-card reveal-up">
       <div class="flex items-start justify-between gap-3">
         <div>
           <p class="eyebrow">Private Realtime Chat</p>
           <h1 class="brand-title mt-1">PulsePair</h1>
         </div>
-        <span id="lobbyConnection" class="status-dot">Connecting</span>
+        <div class="flex items-center gap-2">
+          <button id="themeToggleBtn" type="button" class="btn-secondary btn-theme-toggle" aria-label="Toggle dark mode">Dark</button>
+          <span id="lobbyConnection" class="status-dot">Connecting</span>
+        </div>
       </div>
       <p class="hero-copy mt-3">Two-person, permissioned rooms with instant updates and clean ephemeral sessions.</p>
       <div class="hero-grid mt-4">
@@ -89,6 +104,7 @@
       userName: "{{ user_name|escapejs }}"
     };
   </script>
+  <script src="{% static 'chatcore/js/theme.js' %}"></script>
   <script src="{% static 'chatcore/js/lobby.js' %}"></script>
 </body>
 </html>
