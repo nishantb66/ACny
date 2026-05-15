@@ -16,6 +16,8 @@
     invite_expired: "Invite link expired. Ask for a fresh link.",
     room_not_found: "That room is no longer available.",
     room_full: "Room is already full.",
+    username_taken: "Username already exists.",
+    invalid_username: "Username must use letters, numbers, or underscore (3-24 chars).",
   };
 
   const bootstrap = window.CHAT_BOOTSTRAP;
@@ -205,6 +207,10 @@
   const inviteError = params.get("invite_error");
   if (inviteError && inviteErrorMessages[inviteError]) {
     showBanner(inviteErrorMessages[inviteError], true);
+  }
+  const profileError = params.get("profile_error");
+  if (profileError && inviteErrorMessages[profileError]) {
+    showBanner(inviteErrorMessages[profileError], true);
   }
 
   setConnection("Connecting", false);

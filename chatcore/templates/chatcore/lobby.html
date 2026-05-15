@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PulsePair Chat</title>
+  <title>Legacy Room Chat | PulsePair</title>
   <script>
     (() => {
       try {
@@ -31,15 +31,16 @@
     <section class="hero-card reveal-up">
       <div class="hero-head">
         <div class="hero-heading">
-          <p class="eyebrow">Private Realtime Chat</p>
-          <h1 class="brand-title mt-1">PulsePair</h1>
+          <p class="eyebrow">Legacy Random Room Chat</p>
+          <h1 class="brand-title mt-1">PulsePair Rooms</h1>
         </div>
         <div class="hero-controls">
+          <a href="{% url 'chat_home' %}" class="btn-secondary btn-link-like">Private Chat</a>
           <span id="lobbyConnection" class="status-dot">Connecting</span>
           <button id="themeToggleBtn" type="button" class="theme-toggle-btn" aria-label="Toggle dark mode">Dark</button>
         </div>
       </div>
-      <p class="hero-copy mt-3">Two-person, permissioned rooms with instant updates and clean ephemeral sessions.</p>
+      <p class="hero-copy mt-3">This is the original room mode. P2P messaging is now available from Private Chat.</p>
       <div class="hero-grid mt-4">
         <div class="hero-stat">
           <p class="hero-stat-label">Identity</p>
@@ -55,7 +56,7 @@
     <section class="surface-card reveal-up" style="animation-delay:.05s">
       <form action="{% url 'update_identity' %}" method="post" class="space-y-3">
         {% csrf_token %}
-        <label class="field-label">Display Name</label>
+        <label class="field-label">Display Name (must stay unique globally)</label>
         <div class="field-row">
           <input
             type="text"
@@ -69,7 +70,7 @@
           <button class="btn-secondary" type="submit">Save</button>
         </div>
       </form>
-      <p class="meta-text mt-2">Session: <span class="meta-mono">{{ user_id }}</span></p>
+      <p class="meta-text mt-2">Email: <span class="meta-mono">{{ user_email }}</span></p>
     </section>
 
     <section class="surface-card reveal-up" style="animation-delay:.1s">
@@ -78,7 +79,7 @@
         <span class="btn-sub">Start instantly and invite one participant</span>
       </button>
       <p class="meta-text mt-3">Rooms appear and disappear in realtime based on online presence.</p>
-      <p class="meta-text mt-1">New: Share one-tap WhatsApp invite links for direct room join.</p>
+      <p class="meta-text mt-1">Messages sent in room mode are now persisted in MongoDB.</p>
     </section>
 
     <section class="surface-card reveal-up" style="animation-delay:.15s">
@@ -92,10 +93,6 @@
         <p class="empty-copy">Create one room and invite someone to start chatting.</p>
       </div>
     </section>
-
-    <p class="meta-text mt-4 text-center">
-      Made with &#10084; by Nishant Baruah
-    </p>
   </main>
 
   <script>

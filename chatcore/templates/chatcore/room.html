@@ -31,7 +31,8 @@
     <header class="chat-header reveal-up">
       <div class="room-top-row">
         <div class="room-top-left">
-          <a href="/" class="ghost-link">Back</a>
+          <a href="{% url 'lobby' %}" class="ghost-link">Back</a>
+          <a href="{% url 'chat_home' %}" class="btn-secondary btn-link-like">Private Chat</a>
           <button id="inviteWhatsappBtn" type="button" class="btn-secondary btn-invite-compact">Invite WhatsApp</button>
         </div>
         <div class="room-top-right">

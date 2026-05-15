@@ -6,14 +6,6 @@ services:
       - .env
     ports:
       - "8000:8000"
-    depends_on:
-      - redis
-
-  redis:
-    image: redis:7-alpine
-    command: redis-server --save "" --appendonly no
-    ports:
-      - "6379:6379"
 
   edge:
     image: nginx:1.27-alpine

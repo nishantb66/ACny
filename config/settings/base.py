@@ -12,10 +12,10 @@ env = environ.Env(
     SECRET_KEY=(str, "django-insecure-change-me"),
     ALLOWED_HOSTS=(list, ["*"]),
     CSRF_TRUSTED_ORIGINS=(list, []),
-    REDIS_URL=(str, "redis://127.0.0.1:6379/0"),
     APP_PREFIX=(str, "e2e_chat"),
-    USE_REDIS=(bool, True),
     USE_MANIFEST_STATIC=(bool, False),
+    MONGODB_URI=(str, "mongodb://127.0.0.1:27017"),
+    MONGODB_DB_NAME=(str, "pulsepair_chat"),
 )
 
 environ.Env.read_env(BASE_DIR / ".env")
@@ -64,7 +64,6 @@ TEMPLATES = [
 ASGI_APPLICATION = "config.asgi.application"
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Fully stateless app regarding persistence: no relational DB usage.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.dummy",
@@ -86,10 +85,10 @@ STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else 
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-REDIS_URL = env("REDIS_URL")
-APP_PREFIX = env("APP_PREFIX")
-USE_REDIS = env("USE_REDIS")
 USE_MANIFEST_STATIC = env("USE_MANIFEST_STATIC")
+APP_PREFIX = env("APP_PREFIX")
+MONGODB_URI = env("MONGODB_URI")
+MONGODB_DB_NAME = env("MONGODB_DB_NAME")
 
 if USE_MANIFEST_STATIC:
     STORAGES = {
@@ -104,23 +103,12 @@ else:
         },
     }
 
-if USE_REDIS:
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {
-                "hosts": [REDIS_URL],
-                "capacity": 2000,
-                "expiry": 20,
-            },
-        }
+# No Redis cache usage; websocket fanout is process-local.
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
     }
-else:
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels.layers.InMemoryChannelLayer",
-        }
-    }
+}
 
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = "DENY"

@@ -1,7 +1,8 @@
 LOBBY_GROUP = "lobby.broadcast"
 
-SESSION_USER_ID = "chat_user_id"
-SESSION_USER_NAME = "chat_user_name"
+SESSION_USER_ID = "auth_user_id"
+SESSION_USER_NAME = "auth_user_name"
+SESSION_USER_EMAIL = "auth_user_email"
 
 MAX_ROOM_PARTICIPANTS = 2
 DEFAULT_SINGLE_USER_DISCOVERABLE = True

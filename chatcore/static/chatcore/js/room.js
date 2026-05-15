@@ -530,6 +530,12 @@
         state.ownerId = data.room.owner_id;
         setStatus(data.room.online_count > 1 ? "Live" : "Waiting", false);
         discoverableToggleEl.checked = !!data.room.discoverable_when_single;
+        state.messages.clear();
+        messagesEl.innerHTML = "";
+        (data.messages || []).forEach((message) => {
+          state.messages.set(message.id, message);
+          renderMessage(message, message.sender_id === bootstrap.userId);
+        });
         renderParticipants();
         renderJoinRequests();
         break;

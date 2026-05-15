@@ -1,0 +1,103 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PulsePair Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'chatcore/css/app.css' %}">
+</head>
+<body class="pp-bg">
+  <main class="pp-app" id="chatAppRoot">
+    <header class="pp-header">
+      <div class="pp-brand-wrap">
+        <div class="pp-brand-badge"></div>
+        <div>
+          <p class="pp-brand">PulsePair</p>
+          <p class="pp-brand-sub">Private + Room Chat</p>
+        </div>
+        <span class="pp-status" id="dmConnection">Connecting</span>
+      </div>
+      <nav class="pp-nav">
+        <a href="{% url 'chat_home' %}" class="pp-nav-link pp-nav-link-active">Private Chat</a>
+        <a href="{% url 'lobby' %}" class="pp-nav-link">Room Chat</a>
+        <form method="post" action="{% url 'logout' %}" class="pp-logout-form">
+          {% csrf_token %}
+          <button type="submit" class="pp-nav-link pp-logout-btn">Log out</button>
+        </form>
+      </nav>
+    </header>
+
+    <section class="pp-toolbar">
+      <div class="pp-search-wrap">
+        <label for="searchInput" class="pp-field-label">Search Users</label>
+        <input id="searchInput" type="text" class="pp-search-input" placeholder="Search username and start chat..." autocomplete="off">
+        <div id="searchResults" class="pp-search-results hidden"></div>
+      </div>
+      <form id="usernameForm" class="pp-profile-form">
+        {% csrf_token %}
+        <label for="usernameInput" class="pp-field-label">Username</label>
+        <div class="pp-profile-edit-row">
+          <input id="usernameInput" name="username" class="pp-profile-input" value="{{ user_name }}" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" required>
+          <button class="pp-profile-btn" type="submit">Save</button>
+        </div>
+      </form>
+    </section>
+
+    <p id="usernameNotice" class="pp-inline-note"></p>
+
+    <section class="pp-chat-layout" id="ppChatLayout">
+      <aside class="pp-conversations" id="conversationPane">
+        <div class="pp-pane-top">
+          <h2 class="pp-pane-title">Conversations</h2>
+          <p class="pp-pane-sub">Your recent direct chats</p>
+        </div>
+        <div id="conversationList" class="pp-conversation-list"></div>
+        <p id="conversationEmpty" class="pp-empty">Search a username to start chatting.</p>
+      </aside>
+
+      <section class="pp-thread" id="threadPane">
+        <div class="pp-thread-head">
+          <button id="mobileBackBtn" class="pp-mobile-back" type="button">Back</button>
+          <div>
+            <h2 id="chatTitle" class="pp-thread-title">Select a conversation</h2>
+            <p id="chatMeta" class="pp-thread-meta">Messages are stored safely in your MongoDB.</p>
+          </div>
+        </div>
+
+        <div id="messages" class="pp-messages"></div>
+
+        <form id="composer" class="pp-composer">
+          <textarea id="messageInput" class="pp-composer-input" rows="1" placeholder="Type a message" maxlength="2000" disabled></textarea>
+          <button id="sendBtn" class="pp-send-btn" type="submit" disabled>Send</button>
+        </form>
+      </section>
+
+      <aside class="pp-profile">
+        <h3 class="pp-pane-title">Profile</h3>
+        <div class="pp-profile-card">
+          <p class="pp-profile-key">Email</p>
+          <p class="pp-profile-value">{{ user_email }}</p>
+          <p class="pp-profile-key">Username</p>
+          <p class="pp-profile-value" id="profileUsername">{{ user_name }}</p>
+          <p class="pp-profile-key">Tip</p>
+          <p class="pp-profile-help">Start P2P chat by searching username. Tap a conversation to continue instantly.</p>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  {{ conversations|json_script:"initialConversations" }}
+  <script>
+    window.CHAT_BOOTSTRAP = {
+      userId: "{{ user_id|escapejs }}",
+      userName: "{{ user_name|escapejs }}",
+      userEmail: "{{ user_email|escapejs }}"
+    };
+  </script>
+  <script src="{% static 'chatcore/js/chat_home.js' %}"></script>
+</body>
+</html>

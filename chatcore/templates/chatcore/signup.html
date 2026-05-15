@@ -1,0 +1,43 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign Up | PulsePair</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'chatcore/css/app.css' %}">
+</head>
+<body class="auth-bg">
+  <main class="auth-shell">
+    <section class="auth-card">
+      <p class="auth-kicker">Secure chat</p>
+      <h1 class="auth-title">Create Account</h1>
+      <p class="auth-sub">Use email and a unique username.</p>
+
+      {% if error %}
+      <p class="auth-error">{{ error }}</p>
+      {% endif %}
+
+      <form method="post" class="auth-form">
+        {% csrf_token %}
+
+        <label class="auth-label" for="username">Username</label>
+        <input id="username" name="username" type="text" class="auth-input" value="{{ username|default:'' }}" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" required>
+
+        <label class="auth-label" for="email">Email</label>
+        <input id="email" name="email" type="email" class="auth-input" value="{{ email|default:'' }}" required>
+
+        <label class="auth-label" for="password">Password</label>
+        <input id="password" name="password" type="password" class="auth-input" minlength="8" required>
+
+        <button type="submit" class="auth-btn">Create Account</button>
+      </form>
+
+      <p class="auth-foot">Already have an account? <a href="{% url 'login' %}">Log in</a></p>
+    </section>
+  </main>
+</body>
+</html>

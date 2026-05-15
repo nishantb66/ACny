@@ -1,0 +1,41 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login | PulsePair</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'chatcore/css/app.css' %}">
+</head>
+<body class="auth-bg">
+  <main class="auth-shell">
+    <section class="auth-card">
+      <p class="auth-kicker">Secure chat</p>
+      <h1 class="auth-title">Welcome Back</h1>
+      <p class="auth-sub">Sign in to continue to your chats.</p>
+
+      {% if error %}
+      <p class="auth-error">{{ error }}</p>
+      {% endif %}
+
+      <form method="post" class="auth-form">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+
+        <label class="auth-label" for="email">Email</label>
+        <input id="email" name="email" type="email" class="auth-input" value="{{ email|default:'' }}" required>
+
+        <label class="auth-label" for="password">Password</label>
+        <input id="password" name="password" type="password" class="auth-input" required>
+
+        <button type="submit" class="auth-btn">Log In</button>
+      </form>
+
+      <p class="auth-foot">No account? <a href="{% url 'signup' %}">Create one</a></p>
+    </section>
+  </main>
+</body>
+</html>

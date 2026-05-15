@@ -16,11 +16,11 @@ services:
         value: https://acny.onrender.com
       - key: APP_PREFIX
         value: e2e_chat
-      - key: USE_REDIS
-        value: False
       - key: USE_MANIFEST_STATIC
         value: False
-      - key: REDIS_URL
-        value: redis://127.0.0.1:6379/0
+      - key: MONGODB_URI
+        value: mongodb+srv://nishantbaruah3_db_user:LptzrluHQSRJmhFC@cluster1.fc5ufaf.mongodb.net/?appName=cluster1
+      - key: MONGODB_DB_NAME
+        value: pulsepair_chat
       - key: SECRET_KEY
         generateValue: true

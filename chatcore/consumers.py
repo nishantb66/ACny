@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import re
 import secrets
 from collections.abc import Callable
 from typing import Any
 
+from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
 from .constants import (
@@ -20,6 +22,8 @@ from .constants import (
     TIMED_ONE_TIME_IMAGE_MODE,
 )
 from .services.backend import RoomStateService
+from .services.chat_store import ChatStore
+from .services.user_store import UserStore
 
 ONE_TIME_IMAGE_DATA_URL_RE = re.compile(
     r"^data:(?P<mime>image\/[a-zA-Z0-9.+-]+);base64,(?P<data>[A-Za-z0-9+/=\s]+)$"
@@ -30,10 +34,19 @@ class BaseConsumer(AsyncJsonWebsocketConsumer):
     user_id: str
     user_name: str
 
-    async def init_identity(self) -> None:
-        session = self.scope["session"]
-        self.user_id = session.get(SESSION_USER_ID) or secrets.token_urlsafe(10)
-        self.user_name = session.get(SESSION_USER_NAME) or f"Guest-{self.user_id[:4].upper()}"
+    async def init_identity(self) -> bool:
+        session = self.scope.get("session")
+        if not session:
+            return False
+
+        user_id = session.get(SESSION_USER_ID)
+        user_name = session.get(SESSION_USER_NAME)
+        if not user_id or not user_name:
+            return False
+
+        self.user_id = str(user_id)
+        self.user_name = str(user_name)
+        return True
 
     async def send_error(self, code: str, message: str) -> None:
         await self.send_json({"type": "error", "code": code, "message": message})
@@ -49,7 +62,11 @@ class LobbyConsumer(BaseConsumer):
     personal_group: str
 
     async def connect(self) -> None:
-        await self.init_identity()
+        has_identity = await self.init_identity()
+        if not has_identity:
+            await self.close(code=4401)
+            return
+
         self.personal_group = RoomStateService.user_group(self.user_id)
 
         await self.channel_layer.group_add(LOBBY_GROUP, self.channel_name)
@@ -139,7 +156,11 @@ class RoomConsumer(BaseConsumer):
 
     async def connect(self) -> None:
         self.connected = False
-        await self.init_identity()
+        has_identity = await self.init_identity()
+        if not has_identity:
+            await self.close(code=4401)
+            return
+
         self.room_id = self.scope["url_route"]["kwargs"]["room_id"].upper()
         self.room_group = RoomStateService.room_group(self.room_id)
 
@@ -157,10 +178,16 @@ class RoomConsumer(BaseConsumer):
         self.connected = True
 
         room = result.data["room"]
+        history = await sync_to_async(ChatStore.list_room_messages, thread_sensitive=False)(
+            self.room_id,
+            80,
+        )
+
         await self.send_json(
             {
                 "type": "room_init",
                 "room": room,
+                "messages": history,
                 "self": {
                     "user_id": self.user_id,
                     "display_name": self.user_name,
@@ -272,6 +299,11 @@ class RoomConsumer(BaseConsumer):
             "reply_to": reply_to,
         }
 
+        await sync_to_async(ChatStore.save_room_message, thread_sensitive=False)(
+            self.room_id,
+            event_payload,
+        )
+
         await self.channel_layer.group_send(
             self.room_group,
             {
@@ -332,6 +364,10 @@ class RoomConsumer(BaseConsumer):
             return
 
         message = result.data["message"]
+        await sync_to_async(ChatStore.save_room_message, thread_sensitive=False)(
+            self.room_id,
+            message,
+        )
         await self.channel_layer.group_send(
             self.room_group,
             {
@@ -597,3 +633,202 @@ class RoomConsumer(BaseConsumer):
             "mime_type": mime_type,
             "data_url": f"data:{mime_type};base64,{raw_base64}",
         }
+
+
+class DMConsumer(BaseConsumer):
+    personal_group: str
+    joined_threads: set[str]
+
+    @staticmethod
+    def dm_user_group(user_id: str) -> str:
+        return f"dm.user.{user_id}"
+
+    @staticmethod
+    def dm_thread_group(thread_key: str) -> str:
+        # Channels group names cannot contain ":"; use a stable ASCII-safe digest.
+        digest = hashlib.sha1(thread_key.encode("utf-8")).hexdigest()
+        return f"dm.thread.{digest}"
+
+    async def connect(self) -> None:
+        self.personal_group = ""
+        self.joined_threads = set()
+
+        has_identity = await self.init_identity()
+        if not has_identity:
+            await self.close(code=4401)
+            return
+
+        self.personal_group = self.dm_user_group(self.user_id)
+
+        await self.channel_layer.group_add(self.personal_group, self.channel_name)
+        await self.accept()
+
+        conversations = await sync_to_async(ChatStore.list_conversations, thread_sensitive=False)(
+            self.user_id,
+            40,
+        )
+        await self.send_json(
+            {
+                "type": "dm_bootstrap",
+                "self": {
+                    "user_id": self.user_id,
+                    "username": self.user_name,
+                },
+                "conversations": conversations,
+            }
+        )
+
+    async def disconnect(self, close_code: int) -> None:
+        if getattr(self, "personal_group", ""):
+            await self.channel_layer.group_discard(self.personal_group, self.channel_name)
+        for group in list(getattr(self, "joined_threads", set())):
+            await self.channel_layer.group_discard(group, self.channel_name)
+
+    async def receive_json(self, content: dict[str, Any], **kwargs: Any) -> None:
+        action = content.get("action")
+        actions = {
+            "search_users": self.handle_search_users,
+            "open_thread": self.handle_open_thread,
+            "dm_send": self.handle_send_dm,
+            "mark_thread_read": self.handle_mark_read,
+            "ping": self.handle_ping,
+        }
+        handler = actions.get(action)
+        if not handler:
+            await self.send_error("unknown_action", "Unsupported action")
+            return
+
+        await self.safe_action(handler, content)
+
+    async def handle_ping(self, _: dict[str, Any]) -> None:
+        await self.send_json({"type": "pong"})
+
+    async def handle_search_users(self, payload: dict[str, Any]) -> None:
+        query = str(payload.get("query") or "").strip()
+        if not query:
+            await self.send_json({"type": "search_results", "query": query, "results": []})
+            return
+
+        results = await sync_to_async(UserStore.search_users_by_prefix, thread_sensitive=False)(
+            query,
+            self.user_id,
+            14,
+        )
+        await self.send_json({"type": "search_results", "query": query, "results": results})
+
+    async def handle_open_thread(self, payload: dict[str, Any]) -> None:
+        peer_user_id = str(payload.get("peer_user_id") or "").strip()
+        peer_username = str(payload.get("peer_username") or "").strip()
+
+        peer = None
+        if peer_user_id:
+            peer = await sync_to_async(UserStore.get_user_by_id, thread_sensitive=False)(peer_user_id)
+        elif peer_username:
+            peer = await sync_to_async(UserStore.get_user_by_username, thread_sensitive=False)(peer_username)
+
+        if not peer:
+            await self.send_error("user_not_found", "User not found")
+            return
+        if peer["user_id"] == self.user_id:
+            await self.send_error("invalid_target", "You cannot chat with yourself")
+            return
+
+        history_result = await sync_to_async(ChatStore.list_dm_messages, thread_sensitive=False)(
+            self.user_id,
+            peer["user_id"],
+            90,
+        )
+        if not history_result.ok:
+            await self.send_error(history_result.code, "Unable to open chat")
+            return
+
+        thread_key = history_result.data["thread_key"]
+        thread_group = self.dm_thread_group(thread_key)
+        if thread_group not in self.joined_threads:
+            await self.channel_layer.group_add(thread_group, self.channel_name)
+            self.joined_threads.add(thread_group)
+
+        await sync_to_async(ChatStore.mark_thread_read, thread_sensitive=False)(self.user_id, peer["user_id"])
+
+        await self.send_json(
+            {
+                "type": "thread_opened",
+                "thread_key": thread_key,
+                "peer": {
+                    "user_id": peer["user_id"],
+                    "username": peer["username"],
+                },
+                "messages": history_result.data["messages"],
+            }
+        )
+
+        await self._send_conversations()
+
+    async def handle_send_dm(self, payload: dict[str, Any]) -> None:
+        peer_user_id = str(payload.get("peer_user_id") or "").strip()
+        if not peer_user_id:
+            await self.send_error("invalid_target", "Missing chat partner")
+            return
+
+        result = await sync_to_async(ChatStore.send_dm_message, thread_sensitive=False)(
+            self.user_id,
+            peer_user_id,
+            str(payload.get("message") or ""),
+        )
+        if not result.ok:
+            await self.send_error(result.code, "Unable to send message")
+            return
+
+        message = result.data["message"]
+        thread_group = self.dm_thread_group(message["thread_key"])
+        if thread_group not in self.joined_threads:
+            await self.channel_layer.group_add(thread_group, self.channel_name)
+            self.joined_threads.add(thread_group)
+
+        await self.channel_layer.group_send(
+            thread_group,
+            {
+                "type": "dm.message",
+                "payload": message,
+            },
+        )
+
+        await self.channel_layer.group_send(
+            self.dm_user_group(self.user_id),
+            {
+                "type": "dm.conversations.refresh",
+            },
+        )
+        await self.channel_layer.group_send(
+            self.dm_user_group(peer_user_id),
+            {
+                "type": "dm.conversations.refresh",
+            },
+        )
+
+    async def handle_mark_read(self, payload: dict[str, Any]) -> None:
+        peer_user_id = str(payload.get("peer_user_id") or "").strip()
+        if not peer_user_id:
+            return
+        await sync_to_async(ChatStore.mark_thread_read, thread_sensitive=False)(self.user_id, peer_user_id)
+        await self._send_conversations()
+
+    async def dm_message(self, event: dict[str, Any]) -> None:
+        payload = event["payload"]
+        await self.send_json(
+            {
+                "type": "dm_message",
+                "payload": payload,
+                "is_self": payload["sender_id"] == self.user_id,
+            }
+        )
+
+    async def dm_conversations_refresh(self, event: dict[str, Any]) -> None:
+        await self._send_conversations()
+
+    async def _send_conversations(self) -> None:
+        conversations = await sync_to_async(ChatStore.list_conversations, thread_sensitive=False)(
+            self.user_id,
+            40,
+        )
+        await self.send_json({"type": "conversations", "items": conversations})
