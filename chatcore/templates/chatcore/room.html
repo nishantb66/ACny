@@ -17,85 +17,130 @@
       }
     })();
   </script>
-  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'chatcore/css/app.css' %}">
 </head>
-<body class="app-bg min-h-screen">
-  <div class="ambient-shape ambient-shape-a"></div>
-  <div class="ambient-shape ambient-shape-b"></div>
+<body class="pp-bg pp-unified-page pp-room-chat-page">
+  <main class="pp-shell">
+    <aside class="pp-sidebar" aria-label="Primary">
+      <a href="{% url 'chat_home' %}" class="pp-logo">
+        <span class="pp-logo-mark">P</span>
+        <span>
+          <strong>PulsePair</strong>
+          <small id="roomStatusPill">Connecting</small>
+        </span>
+      </a>
 
-  <main class="chat-shell mx-auto flex min-h-screen w-full flex-col px-4 pt-4 pb-4">
-    <header class="chat-header reveal-up">
-      <div class="room-top-row">
-        <div class="room-top-left">
-          <a href="{% url 'lobby' %}" class="ghost-link">Back</a>
-          <a href="{% url 'chat_home' %}" class="btn-secondary btn-link-like">Private Chat</a>
-          <button id="inviteWhatsappBtn" type="button" class="btn-secondary btn-invite-compact">Invite WhatsApp</button>
-        </div>
-        <div class="room-top-right">
-          <span class="status-dot" id="roomStatusPill">Connecting</span>
-          <button id="themeToggleBtn" type="button" class="theme-toggle-btn" aria-label="Toggle dark mode">Dark</button>
-        </div>
+      <nav class="pp-side-nav">
+        <a href="{% url 'chat_home' %}" class="pp-side-link">
+          <span class="pp-nav-icon">C</span>
+          <span>Chats</span>
+        </a>
+        <a href="{% url 'chat_people' %}" class="pp-side-link">
+          <span class="pp-nav-icon">P</span>
+          <span>People</span>
+        </a>
+        <a href="{% url 'lobby' %}" class="pp-side-link pp-side-link-active">
+          <span class="pp-nav-icon">R</span>
+          <span>Rooms</span>
+        </a>
+        <a href="{% url 'chat_profile' %}" class="pp-side-link">
+          <span class="pp-nav-icon">S</span>
+          <span>Profile</span>
+        </a>
+      </nav>
+
+      <div class="pp-sidebar-user">
+        <span class="pp-avatar pp-avatar-self">{{ user_name|first|upper }}</span>
+        <span>
+          <strong>{{ user_name }}</strong>
+          <small>{{ user_id }}</small>
+        </span>
       </div>
-      <div class="mt-3 flex items-start justify-between gap-3">
-        <div>
-          <p class="eyebrow">Secure Room</p>
-          <h1 class="brand-title mt-1">{{ room_id }}</h1>
-        </div>
-      </div>
 
-      <div class="discoverable-box mt-3 rounded-2xl p-3">
-        <label class="flex items-center justify-between gap-3">
-          <span class="meta-text discoverable-text">Keep room discoverable when one participant remains</span>
-          <input id="discoverableToggle" type="checkbox" class="h-5 w-5 accent-[#86b416]" checked>
-        </label>
-      </div>
-    </header>
-
-    <section class="surface-card mt-3 reveal-up" style="animation-delay:.05s">
-      <h2 class="section-title">Participants</h2>
-      <div id="participants" class="mt-2 flex flex-wrap gap-2"></div>
-    </section>
-
-    <section id="joinRequestsPanel" class="surface-card mt-3 hidden reveal-up" style="animation-delay:.08s">
-      <h2 class="section-title">Join Requests</h2>
-      <div id="joinRequests" class="mt-2 space-y-2"></div>
-    </section>
-
-    <section class="chat-panel mt-3 flex min-h-0 flex-1 flex-col reveal-up" style="animation-delay:.12s">
-      <div id="messages" class="chat-stream mb-3 flex-1 space-y-2 overflow-y-auto"></div>
-      <p id="typingIndicator" class="typing-line"></p>
-
-      <form id="composer" class="composer-wrap mt-auto">
-        <div id="replyPreview" class="reply-preview hidden">
-          <div class="flex items-start justify-between gap-2">
-            <div>
-              <p id="replyToName" class="reply-name"></p>
-              <p id="replyToBody" class="reply-body"></p>
-            </div>
-            <button id="cancelReplyBtn" type="button" class="ghost-link !text-xs">Cancel</button>
-          </div>
-        </div>
-
-        <div class="composer-row">
-          <button id="openImageComposerBtn" class="btn-secondary btn-image-launch" type="button">Image</button>
-          <textarea
-            id="messageInput"
-            rows="1"
-            maxlength="2000"
-            class="input-main composer-input"
-            placeholder="Type a message"
-            required
-          ></textarea>
-          <button class="btn-primary btn-send" type="submit">
-            <span class="btn-main">Send</span>
-          </button>
-        </div>
+      <form method="post" action="{% url 'logout' %}" class="pp-logout-form">
+        {% csrf_token %}
+        <button type="submit" class="pp-logout-btn">Log out</button>
       </form>
+    </aside>
+
+    <section class="pp-main">
+      <header class="pp-mobile-topbar">
+        <a href="{% url 'lobby' %}" class="pp-mobile-brand">Room {{ room_id }}</a>
+        <span class="pp-status pp-status-mobile" id="roomStatusPillMobile">Connecting</span>
+      </header>
+
+      <section class="pp-room-chat-shell">
+        <header class="pp-room-chat-head">
+          <div>
+            <p class="pp-kicker">Secure Room</p>
+            <h1 class="pp-screen-title pp-room-id-title">{{ room_id }}</h1>
+          </div>
+          <div class="pp-room-head-actions">
+            <a href="{% url 'lobby' %}" class="pp-secondary-action">Back</a>
+            <a href="{% url 'chat_home' %}" class="pp-secondary-action">Private Chat</a>
+            <button id="inviteWhatsappBtn" type="button" class="pp-primary-action">Invite</button>
+            <button id="themeToggleBtn" type="button" class="pp-secondary-action pp-theme-btn" aria-label="Toggle dark mode">Theme</button>
+          </div>
+        </header>
+
+        <section class="pp-room-card pp-room-discoverable">
+          <label class="pp-room-discoverable-label">
+            <span>Keep room discoverable when one participant remains</span>
+            <input id="discoverableToggle" type="checkbox" checked>
+          </label>
+        </section>
+
+        <section class="pp-room-card">
+          <h2 class="pp-room-section-title">Participants</h2>
+          <div id="participants" class="pp-room-participants"></div>
+        </section>
+
+        <section id="joinRequestsPanel" class="pp-room-card hidden">
+          <h2 class="pp-room-section-title">Join Requests</h2>
+          <div id="joinRequests" class="pp-room-requests"></div>
+        </section>
+
+        <section class="pp-room-chat-panel">
+          <div id="messages" class="pp-room-chat-stream"></div>
+          <p id="typingIndicator" class="typing-line"></p>
+
+          <form id="composer" class="composer-wrap">
+            <div id="replyPreview" class="reply-preview hidden">
+              <div class="pp-row-between">
+                <div>
+                  <p id="replyToName" class="reply-name"></p>
+                  <p id="replyToBody" class="reply-body"></p>
+                </div>
+                <button id="cancelReplyBtn" type="button" class="ghost-link">Cancel</button>
+              </div>
+            </div>
+
+            <div class="composer-row">
+              <button id="openImageComposerBtn" class="pp-secondary-action pp-image-btn" type="button">Image</button>
+              <textarea
+                id="messageInput"
+                rows="1"
+                maxlength="2000"
+                class="pp-composer-input composer-input"
+                placeholder="Type a message"
+                required
+              ></textarea>
+              <button class="pp-send-btn btn-send" type="submit">Send</button>
+            </div>
+          </form>
+        </section>
+      </section>
     </section>
+
+    <nav class="pp-mobile-tabs" aria-label="Mobile navigation">
+      <a href="{% url 'chat_home' %}" class="pp-mobile-tab">Chats</a>
+      <a href="{% url 'chat_people' %}" class="pp-mobile-tab">People</a>
+      <a href="{% url 'lobby' %}" class="pp-mobile-tab pp-mobile-tab-active">Rooms</a>
+      <a href="{% url 'chat_profile' %}" class="pp-mobile-tab">Profile</a>
+    </nav>
   </main>
 
   <div id="imageComposerModal" class="image-compose-modal hidden" role="dialog" aria-modal="true" aria-labelledby="imageComposerTitle">
@@ -109,7 +154,7 @@
       </div>
 
       <input id="imageInput" type="file" accept="image/*" class="hidden">
-      <button id="imagePickerBtn" class="btn-secondary image-tool-btn w-full" type="button">Choose Image</button>
+      <button id="imagePickerBtn" class="btn-secondary image-tool-btn" type="button">Choose Image</button>
       <p id="selectedImageMeta" class="selected-image-meta"></p>
 
       <div class="image-compose-grid">
@@ -126,7 +171,7 @@
         </label>
       </div>
 
-      <button id="sendImageBtn" class="btn-primary image-send-btn w-full" type="button">
+      <button id="sendImageBtn" class="btn-primary image-send-btn" type="button">
         <span class="btn-main">Send Image</span>
       </button>
     </div>

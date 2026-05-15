@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Legacy Room Chat | PulsePair</title>
+  <title>Room Lobby | PulsePair</title>
   <script>
     (() => {
       try {
@@ -17,82 +17,127 @@
       }
     })();
   </script>
-  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'chatcore/css/app.css' %}">
 </head>
-<body class="app-bg min-h-screen">
-  <div class="ambient-shape ambient-shape-a"></div>
-  <div class="ambient-shape ambient-shape-b"></div>
+<body class="pp-bg pp-unified-page pp-room-lobby-page">
+  <main class="pp-shell">
+    <aside class="pp-sidebar" aria-label="Primary">
+      <a href="{% url 'chat_home' %}" class="pp-logo">
+        <span class="pp-logo-mark">P</span>
+        <span>
+          <strong>PulsePair</strong>
+          <small id="lobbyConnection">Connecting</small>
+        </span>
+      </a>
 
-  <main class="app-shell mx-auto w-full px-4 pt-5 pb-8">
-    <section class="hero-card reveal-up">
-      <div class="hero-head">
-        <div class="hero-heading">
-          <p class="eyebrow">Legacy Random Room Chat</p>
-          <h1 class="brand-title mt-1">PulsePair Rooms</h1>
-        </div>
-        <div class="hero-controls">
-          <a href="{% url 'chat_home' %}" class="btn-secondary btn-link-like">Private Chat</a>
-          <span id="lobbyConnection" class="status-dot">Connecting</span>
-          <button id="themeToggleBtn" type="button" class="theme-toggle-btn" aria-label="Toggle dark mode">Dark</button>
-        </div>
-      </div>
-      <p class="hero-copy mt-3">This is the original room mode. P2P messaging is now available from Private Chat.</p>
-      <div class="hero-grid mt-4">
-        <div class="hero-stat">
-          <p class="hero-stat-label">Identity</p>
-          <p class="hero-stat-value" id="selfNamePill">{{ user_name }}</p>
-        </div>
-        <div class="hero-stat">
-          <p class="hero-stat-label">Live Rooms</p>
-          <p class="hero-stat-value" id="roomCount">0 rooms</p>
-        </div>
-      </div>
-    </section>
+      <nav class="pp-side-nav">
+        <a href="{% url 'chat_home' %}" class="pp-side-link">
+          <span class="pp-nav-icon">C</span>
+          <span>Chats</span>
+        </a>
+        <a href="{% url 'chat_people' %}" class="pp-side-link">
+          <span class="pp-nav-icon">P</span>
+          <span>People</span>
+        </a>
+        <a href="{% url 'lobby' %}" class="pp-side-link pp-side-link-active">
+          <span class="pp-nav-icon">R</span>
+          <span>Rooms</span>
+        </a>
+        <a href="{% url 'chat_profile' %}" class="pp-side-link">
+          <span class="pp-nav-icon">S</span>
+          <span>Profile</span>
+        </a>
+      </nav>
 
-    <section class="surface-card reveal-up" style="animation-delay:.05s">
-      <form action="{% url 'update_identity' %}" method="post" class="space-y-3">
+      <div class="pp-sidebar-user">
+        <span class="pp-avatar pp-avatar-self">{{ user_name|first|upper }}</span>
+        <span>
+          <strong id="selfNamePill">{{ user_name }}</strong>
+          <small>{{ user_email }}</small>
+        </span>
+      </div>
+
+      <form method="post" action="{% url 'logout' %}" class="pp-logout-form">
         {% csrf_token %}
-        <label class="field-label">Display Name (must stay unique globally)</label>
-        <div class="field-row">
-          <input
-            type="text"
-            name="display_name"
-            minlength="3"
-            maxlength="24"
-            value="{{ user_name }}"
-            class="input-main"
-            required
-          />
-          <button class="btn-secondary" type="submit">Save</button>
-        </div>
+        <button type="submit" class="pp-logout-btn">Log out</button>
       </form>
-      <p class="meta-text mt-2">Email: <span class="meta-mono">{{ user_email }}</span></p>
+    </aside>
+
+    <section class="pp-main">
+      <header class="pp-mobile-topbar">
+        <a href="{% url 'chat_home' %}" class="pp-mobile-brand">PulsePair</a>
+        <span class="pp-status pp-status-mobile" id="lobbyConnectionMobile">Connecting</span>
+      </header>
+
+      <section class="pp-screen pp-room-screen">
+        <div class="pp-screen-head">
+          <div>
+            <p class="pp-kicker">Legacy random room chat</p>
+            <h1 class="pp-screen-title">Rooms</h1>
+          </div>
+          <div class="pp-room-head-actions">
+            <a href="{% url 'chat_home' %}" class="pp-secondary-action">Private Chat</a>
+            <button id="themeToggleBtn" type="button" class="pp-secondary-action pp-theme-btn" aria-label="Toggle dark mode">Theme</button>
+          </div>
+        </div>
+
+        <section class="pp-room-card">
+          <div class="pp-room-stat-grid">
+            <div class="pp-room-stat">
+              <p class="pp-room-stat-label">Identity</p>
+              <p class="pp-room-stat-value" id="selfNamePillMobile">{{ user_name }}</p>
+            </div>
+            <div class="pp-room-stat">
+              <p class="pp-room-stat-label">Live Rooms</p>
+              <p class="pp-room-stat-value" id="roomCount">0 rooms</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="pp-room-card">
+          <form action="{% url 'update_identity' %}" method="post" class="pp-room-form">
+            {% csrf_token %}
+            <label class="pp-field-label">Display Name</label>
+            <div class="pp-room-form-row">
+              <input
+                type="text"
+                name="display_name"
+                minlength="3"
+                maxlength="24"
+                value="{{ user_name }}"
+                class="pp-profile-input"
+                required
+              />
+              <button class="pp-profile-btn" type="submit">Save</button>
+            </div>
+          </form>
+          <p class="pp-room-email">{{ user_email }}</p>
+        </section>
+
+        <section class="pp-room-card">
+          <button id="createRoomBtn" class="pp-room-create-btn" type="button">
+            <span class="pp-room-create-title">Create Room</span>
+            <span class="pp-room-create-sub">Start instantly and invite one participant</span>
+          </button>
+          <div id="notificationBanner" class="notice-banner hidden"></div>
+          <div id="roomList" class="pp-room-list"></div>
+          <div id="emptyState" class="empty-state">
+            <p class="empty-title">No active rooms yet</p>
+            <p class="empty-copy">Create one room and invite someone to start chatting.</p>
+          </div>
+        </section>
+      </section>
     </section>
 
-    <section class="surface-card reveal-up" style="animation-delay:.1s">
-      <button id="createRoomBtn" class="btn-primary w-full" type="button">
-        <span class="btn-main">Create Room</span>
-        <span class="btn-sub">Start instantly and invite one participant</span>
-      </button>
-      <p class="meta-text mt-3">Rooms appear and disappear in realtime based on online presence.</p>
-      <p class="meta-text mt-1">Messages sent in room mode are now persisted in MongoDB.</p>
-    </section>
-
-    <section class="surface-card reveal-up" style="animation-delay:.15s">
-      <div class="mb-3 flex items-center justify-between">
-        <h2 class="section-title">Available Rooms</h2>
-      </div>
-      <div id="notificationBanner" class="notice-banner hidden mb-3"></div>
-      <div id="roomList" class="space-y-2"></div>
-      <div id="emptyState" class="empty-state">
-        <p class="empty-title">No active rooms yet</p>
-        <p class="empty-copy">Create one room and invite someone to start chatting.</p>
-      </div>
-    </section>
+    <nav class="pp-mobile-tabs" aria-label="Mobile navigation">
+      <a href="{% url 'chat_home' %}" class="pp-mobile-tab">Chats</a>
+      <a href="{% url 'chat_people' %}" class="pp-mobile-tab">People</a>
+      <a href="{% url 'lobby' %}" class="pp-mobile-tab pp-mobile-tab-active">Rooms</a>
+      <a href="{% url 'chat_profile' %}" class="pp-mobile-tab">Profile</a>
+    </nav>
   </main>
 
   <script>

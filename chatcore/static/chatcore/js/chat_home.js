@@ -1,60 +1,69 @@
 (() => {
-  const bootstrap = window.CHAT_BOOTSTRAP;
-
-  const connectionEl = document.getElementById("dmConnection");
-  const conversationListEl = document.getElementById("conversationList");
-  const conversationEmptyEl = document.getElementById("conversationEmpty");
-  const messagesEl = document.getElementById("messages");
-  const composerEl = document.getElementById("composer");
-  const messageInputEl = document.getElementById("messageInput");
-  const sendBtnEl = document.getElementById("sendBtn");
-  const chatTitleEl = document.getElementById("chatTitle");
-  const chatMetaEl = document.getElementById("chatMeta");
-  const searchInputEl = document.getElementById("searchInput");
-  const searchResultsEl = document.getElementById("searchResults");
-  const usernameFormEl = document.getElementById("usernameForm");
-  const usernameInputEl = document.getElementById("usernameInput");
-  const usernameNoticeEl = document.getElementById("usernameNotice");
-  const profileUsernameEl = document.getElementById("profileUsername");
-  const chatLayoutEl = document.getElementById("ppChatLayout");
-  const mobileBackBtnEl = document.getElementById("mobileBackBtn");
+  const bootstrap = window.CHAT_BOOTSTRAP || {};
 
   const initialConversationsEl = document.getElementById("initialConversations");
+  const activePeerEl = document.getElementById("activePeerData");
   const initialConversations = initialConversationsEl ? JSON.parse(initialConversationsEl.textContent || "[]") : [];
+  const activePeer = activePeerEl ? JSON.parse(activePeerEl.textContent || "null") : null;
+
+  const els = {
+    connection: document.getElementById("dmConnection"),
+    mobileConnection: document.getElementById("dmConnectionMobile"),
+    conversationList: document.getElementById("conversationList"),
+    conversationEmpty: document.getElementById("conversationEmpty"),
+    inboxUnreadCount: document.getElementById("inboxUnreadCount"),
+    messages: document.getElementById("messages"),
+    composer: document.getElementById("composer"),
+    messageInput: document.getElementById("messageInput"),
+    sendBtn: document.getElementById("sendBtn"),
+    chatTitle: document.getElementById("chatTitle"),
+    chatMeta: document.getElementById("chatMeta"),
+    peopleSearchInput: document.getElementById("peopleSearchInput"),
+    peopleSearchResults: document.getElementById("peopleSearchResults"),
+    peopleSearchEmpty: document.getElementById("peopleSearchEmpty"),
+    usernameForm: document.getElementById("usernameForm"),
+    usernameNotice: document.getElementById("usernameNotice"),
+    profileUsername: document.getElementById("profileUsername"),
+  };
 
   const state = {
     socket: null,
     conversations: new Map(),
     messagesByThread: new Map(),
-    activePeer: null,
+    activePeer,
     activeThreadKey: null,
     reconnectTimer: null,
     searchTimer: null,
-    bootstrapped: false,
+    activeOpenSent: false,
   };
 
   initialConversations.forEach((item) => {
     state.conversations.set(item.peer.user_id, item);
   });
 
+  const threadUrl = (peerId) => `${bootstrap.threadBaseUrl || "/chat/u/"}${encodeURIComponent(peerId)}/`;
+
   const setConnection = (label, offline = false) => {
-    connectionEl.textContent = label;
-    connectionEl.dataset.state = offline ? "offline" : "online";
+    [els.connection, els.mobileConnection].forEach((node) => {
+      if (!node) {
+        return;
+      }
+      node.textContent = label;
+      node.dataset.state = offline ? "offline" : "online";
+    });
   };
 
   const showNote = (message, isError = false) => {
-    usernameNoticeEl.textContent = message;
-    usernameNoticeEl.dataset.error = isError ? "1" : "0";
+    if (!els.usernameNotice) {
+      return;
+    }
+    els.usernameNotice.textContent = message;
+    els.usernameNotice.dataset.error = isError ? "1" : "0";
     window.setTimeout(() => {
-      if (usernameNoticeEl.textContent === message) {
-        usernameNoticeEl.textContent = "";
+      if (els.usernameNotice?.textContent === message) {
+        els.usernameNotice.textContent = "";
       }
     }, 4200);
-  };
-
-  const autoGrowComposer = () => {
-    messageInputEl.style.height = "auto";
-    messageInputEl.style.height = `${Math.min(messageInputEl.scrollHeight, 132)}px`;
   };
 
   const sortedConversations = () => {
@@ -63,6 +72,13 @@
       const b = new Date(right.last_message?.sent_at || 0).getTime();
       return b - a;
     });
+  };
+
+  const formatTime = (value) => {
+    if (!value) {
+      return "";
+    }
+    return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   const ensureConversation = (peer, threadKey, messages = []) => {
@@ -86,36 +102,50 @@
   };
 
   const renderConversations = () => {
-    const items = sortedConversations();
-    conversationListEl.innerHTML = "";
+    if (!els.conversationList) {
+      return;
+    }
 
-    conversationEmptyEl.classList.toggle("hidden", items.length > 0);
+    const items = sortedConversations();
+    const unreadTotal = items.reduce((sum, item) => sum + (item.unread_count || 0), 0);
+    els.conversationList.innerHTML = "";
+    els.conversationEmpty?.classList.toggle("hidden", items.length > 0);
+    if (els.inboxUnreadCount) {
+      els.inboxUnreadCount.textContent = String(unreadTotal);
+    }
 
     items.forEach((item) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "pp-conversation-item";
-      button.dataset.peerId = item.peer.user_id;
+      const link = document.createElement("a");
+      link.href = threadUrl(item.peer.user_id);
+      link.className = "pp-conversation-item";
       if (state.activePeer?.user_id === item.peer.user_id) {
-        button.classList.add("pp-conversation-item-active");
+        link.classList.add("pp-conversation-item-active");
       }
 
-      const name = document.createElement("p");
+      const avatar = document.createElement("span");
+      avatar.className = "pp-avatar";
+      avatar.textContent = (item.peer.username || "?").slice(0, 1).toUpperCase();
+
+      const text = document.createElement("span");
+      text.className = "pp-conversation-text";
+
+      const name = document.createElement("span");
       name.className = "pp-conversation-name";
       name.textContent = item.peer.username;
 
-      const preview = document.createElement("p");
+      const preview = document.createElement("span");
       preview.className = "pp-conversation-preview";
       preview.textContent = item.last_message?.body || "No messages yet";
 
-      const meta = document.createElement("div");
+      text.appendChild(name);
+      text.appendChild(preview);
+
+      const meta = document.createElement("span");
       meta.className = "pp-conversation-meta";
 
       const time = document.createElement("span");
       time.className = "pp-conversation-time";
-      time.textContent = item.last_message?.sent_at
-        ? new Date(item.last_message.sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : "";
+      time.textContent = formatTime(item.last_message?.sent_at);
       meta.appendChild(time);
 
       if (item.unread_count > 0) {
@@ -125,31 +155,33 @@
         meta.appendChild(unread);
       }
 
-      button.appendChild(name);
-      button.appendChild(preview);
-      button.appendChild(meta);
-      conversationListEl.appendChild(button);
-
-      button.addEventListener("click", () => openThread(item.peer.user_id, item.peer.username));
+      link.appendChild(avatar);
+      link.appendChild(text);
+      link.appendChild(meta);
+      els.conversationList.appendChild(link);
     });
   };
 
   const renderMessages = () => {
-    messagesEl.innerHTML = "";
+    if (!els.messages) {
+      return;
+    }
+
+    els.messages.innerHTML = "";
     if (!state.activeThreadKey) {
       const empty = document.createElement("p");
-      empty.className = "pp-empty";
-      empty.textContent = "Pick a conversation to start messaging.";
-      messagesEl.appendChild(empty);
+      empty.className = "pp-empty pp-message-empty";
+      empty.textContent = "Opening conversation...";
+      els.messages.appendChild(empty);
       return;
     }
 
     const messages = state.messagesByThread.get(state.activeThreadKey) || [];
     if (!messages.length) {
       const empty = document.createElement("p");
-      empty.className = "pp-empty";
+      empty.className = "pp-empty pp-message-empty";
       empty.textContent = "No messages yet. Send the first message.";
-      messagesEl.appendChild(empty);
+      els.messages.appendChild(empty);
       return;
     }
 
@@ -164,41 +196,84 @@
 
       const stamp = document.createElement("p");
       stamp.className = "pp-message-time";
-      stamp.textContent = message.sent_at
-        ? new Date(message.sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : "";
+      stamp.textContent = formatTime(message.sent_at);
 
       bubble.appendChild(body);
       bubble.appendChild(stamp);
-      messagesEl.appendChild(bubble);
+      els.messages.appendChild(bubble);
     });
 
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    els.messages.scrollTop = els.messages.scrollHeight;
   };
 
   const enableComposer = (enabled) => {
-    messageInputEl.disabled = !enabled;
-    sendBtnEl.disabled = !enabled;
+    if (els.messageInput) {
+      els.messageInput.disabled = !enabled;
+    }
+    if (els.sendBtn) {
+      els.sendBtn.disabled = !enabled;
+    }
+  };
+
+  const autoGrowComposer = () => {
+    if (!els.messageInput) {
+      return;
+    }
+    els.messageInput.style.height = "auto";
+    els.messageInput.style.height = `${Math.min(els.messageInput.scrollHeight, 132)}px`;
   };
 
   const sendSocket = (payload) => {
     if (!state.socket || state.socket.readyState !== WebSocket.OPEN) {
-      return;
+      return false;
     }
     state.socket.send(JSON.stringify(payload));
+    return true;
   };
 
-  const openThread = (peerId, peerUsername) => {
-    state.activePeer = {
-      user_id: peerId,
-      username: peerUsername,
-    };
-    chatTitleEl.textContent = peerUsername;
-    chatMetaEl.textContent = "Loading messages...";
+  const requestActiveThread = () => {
+    if (!state.activePeer?.user_id) {
+      return;
+    }
+    if (state.activeOpenSent) {
+      return;
+    }
+    els.chatTitle && (els.chatTitle.textContent = state.activePeer.username);
+    els.chatMeta && (els.chatMeta.textContent = "Loading messages...");
     enableComposer(true);
-    sendSocket({ action: "open_thread", peer_user_id: peerId });
-    chatLayoutEl.classList.add("pp-thread-active");
-    renderConversations();
+    state.activeOpenSent = sendSocket({ action: "open_thread", peer_user_id: state.activePeer.user_id });
+  };
+
+  const renderSearchResults = (results) => {
+    if (!els.peopleSearchResults) {
+      return;
+    }
+
+    els.peopleSearchResults.innerHTML = "";
+    els.peopleSearchEmpty?.classList.toggle("hidden", results.length > 0);
+
+    results.forEach((result) => {
+      const link = document.createElement("a");
+      link.href = threadUrl(result.user_id);
+      link.className = "pp-person-result";
+
+      const avatar = document.createElement("span");
+      avatar.className = "pp-avatar";
+      avatar.textContent = (result.username || "?").slice(0, 1).toUpperCase();
+
+      const name = document.createElement("span");
+      name.className = "pp-person-name";
+      name.textContent = result.username;
+
+      const action = document.createElement("span");
+      action.className = "pp-person-action";
+      action.textContent = "Chat";
+
+      link.appendChild(avatar);
+      link.appendChild(name);
+      link.appendChild(action);
+      els.peopleSearchResults.appendChild(link);
+    });
   };
 
   const handleSocketMessage = (data) => {
@@ -209,13 +284,7 @@
           state.conversations.set(item.peer.user_id, item);
         });
         renderConversations();
-        if (!state.bootstrapped) {
-          state.bootstrapped = true;
-          const first = sortedConversations()[0];
-          if (first && !state.activePeer) {
-            openThread(first.peer.user_id, first.peer.username);
-          }
-        }
+        requestActiveThread();
         break;
       case "conversations":
         state.conversations.clear();
@@ -224,28 +293,25 @@
         });
         renderConversations();
         break;
-      case "search_results": {
+      case "search_results":
         renderSearchResults(data.results || []);
         break;
-      }
-      case "thread_opened": {
+      case "thread_opened":
         state.activeThreadKey = data.thread_key;
         state.activePeer = data.peer;
         state.messagesByThread.set(data.thread_key, data.messages || []);
-        chatTitleEl.textContent = data.peer.username;
-        chatMetaEl.textContent = "Private messages are end-user persisted.";
+        els.chatTitle && (els.chatTitle.textContent = data.peer.username);
+        els.chatMeta && (els.chatMeta.textContent = "Private conversation");
         ensureConversation(data.peer, data.thread_key, data.messages || []);
         renderConversations();
         renderMessages();
         sendSocket({ action: "mark_thread_read", peer_user_id: data.peer.user_id });
         break;
-      }
       case "dm_message": {
         const payload = data.payload;
-        const thread = payload.thread_key;
-        const existing = state.messagesByThread.get(thread) || [];
+        const existing = state.messagesByThread.get(payload.thread_key) || [];
         existing.push(payload);
-        state.messagesByThread.set(thread, existing);
+        state.messagesByThread.set(payload.thread_key, existing);
 
         const relatedPeerId = payload.sender_id === bootstrap.userId ? payload.recipient_id : payload.sender_id;
         const relatedPeerUsername = payload.sender_id === bootstrap.userId
@@ -254,7 +320,7 @@
 
         const existingConversation = state.conversations.get(relatedPeerId);
         state.conversations.set(relatedPeerId, {
-          thread_key: thread,
+          thread_key: payload.thread_key,
           peer: {
             user_id: relatedPeerId,
             username: relatedPeerUsername,
@@ -267,7 +333,7 @@
           unread_count: existingConversation?.unread_count || 0,
         });
 
-        if (state.activeThreadKey === thread) {
+        if (state.activeThreadKey === payload.thread_key) {
           renderMessages();
           if (payload.sender_id !== bootstrap.userId) {
             sendSocket({ action: "mark_thread_read", peer_user_id: payload.sender_id });
@@ -290,27 +356,19 @@
     }
   };
 
-  const renderSearchResults = (results) => {
-    searchResultsEl.innerHTML = "";
-    if (!results.length) {
-      searchResultsEl.classList.add("hidden");
+  const searchPeople = async (query) => {
+    if (!query) {
+      renderSearchResults([]);
       return;
     }
 
-    results.forEach((result) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "pp-search-item";
-      button.textContent = result.username;
-      button.addEventListener("click", () => {
-        searchInputEl.value = result.username;
-        searchResultsEl.classList.add("hidden");
-        openThread(result.user_id, result.username);
-      });
-      searchResultsEl.appendChild(button);
-    });
+    if (sendSocket({ action: "search_users", query })) {
+      return;
+    }
 
-    searchResultsEl.classList.remove("hidden");
+    const response = await fetch(`/api/users/search/?q=${encodeURIComponent(query)}`);
+    const payload = await response.json();
+    renderSearchResults(payload.items || []);
   };
 
   const connectSocket = () => {
@@ -319,18 +377,16 @@
 
     state.socket.onopen = () => {
       setConnection("Live", false);
+      state.activeOpenSent = false;
       if (state.reconnectTimer) {
         clearTimeout(state.reconnectTimer);
         state.reconnectTimer = null;
       }
-      if (state.activePeer?.user_id) {
-        sendSocket({ action: "open_thread", peer_user_id: state.activePeer.user_id });
-      }
+      requestActiveThread();
     };
 
     state.socket.onmessage = (event) => {
-      const payload = JSON.parse(event.data);
-      handleSocketMessage(payload);
+      handleSocketMessage(JSON.parse(event.data));
     };
 
     state.socket.onclose = (event) => {
@@ -340,13 +396,13 @@
         return;
       }
       setConnection("Offline", true);
-      state.reconnectTimer = window.setTimeout(connectSocket, 1200);
+      state.reconnectTimer = window.setTimeout(connectSocket, 1500);
     };
   };
 
-  composerEl.addEventListener("submit", (event) => {
+  els.composer?.addEventListener("submit", (event) => {
     event.preventDefault();
-    const message = messageInputEl.value.trim();
+    const message = els.messageInput?.value.trim();
     if (!message || !state.activePeer) {
       return;
     }
@@ -357,38 +413,25 @@
       message,
     });
 
-    messageInputEl.value = "";
+    els.messageInput.value = "";
     autoGrowComposer();
   });
 
-  messageInputEl.addEventListener("input", autoGrowComposer);
+  els.messageInput?.addEventListener("input", autoGrowComposer);
 
-  searchInputEl.addEventListener("input", () => {
-    const query = searchInputEl.value.trim();
+  els.peopleSearchInput?.addEventListener("input", () => {
+    const query = els.peopleSearchInput.value.trim();
     if (state.searchTimer) {
       clearTimeout(state.searchTimer);
     }
-
-    if (!query) {
-      searchResultsEl.classList.add("hidden");
-      searchResultsEl.innerHTML = "";
-      return;
-    }
-
     state.searchTimer = window.setTimeout(() => {
-      sendSocket({ action: "search_users", query });
-    }, 220);
+      searchPeople(query).catch(() => renderSearchResults([]));
+    }, 180);
   });
 
-  document.addEventListener("click", (event) => {
-    if (!searchResultsEl.contains(event.target) && event.target !== searchInputEl) {
-      searchResultsEl.classList.add("hidden");
-    }
-  });
-
-  usernameFormEl.addEventListener("submit", async (event) => {
+  els.usernameForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const formData = new FormData(usernameFormEl);
+    const formData = new FormData(els.usernameForm);
 
     try {
       const response = await fetch("/api/profile/update/", {
@@ -402,16 +445,13 @@
       }
 
       const updated = payload.user;
-      profileUsernameEl.textContent = updated.username;
-      chatMetaEl.textContent = "Username updated successfully.";
+      if (els.profileUsername) {
+        els.profileUsername.textContent = updated.username;
+      }
       showNote("Username updated.", false);
     } catch {
       showNote("Could not update username.", true);
     }
-  });
-
-  mobileBackBtnEl.addEventListener("click", () => {
-    chatLayoutEl.classList.remove("pp-thread-active");
   });
 
   renderConversations();

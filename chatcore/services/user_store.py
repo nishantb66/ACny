@@ -54,7 +54,6 @@ class UserStore:
         if len(password_raw) < 8:
             return UserResult(ok=False, code="weak_password")
 
-        users = MongoStore.users()
         now = utc_now()
         payload = {
             "email": email_lower,
@@ -67,6 +66,41 @@ class UserStore:
             "last_seen_at": now,
         }
 
+        return cls._insert_user_payload(payload, email_lower)
+
+    @classmethod
+    def create_user_from_password_hash(cls, email: str, username: str, password_hash: str) -> UserResult:
+        try:
+            email_lower = cls._validate_email(email)
+        except ValidationError:
+            return UserResult(ok=False, code="invalid_email")
+
+        try:
+            username_clean = cls._validate_username(username)
+        except ValueError:
+            return UserResult(ok=False, code="invalid_username")
+
+        encoded = (password_hash or "").strip()
+        if not encoded or encoded.startswith("!"):
+            return UserResult(ok=False, code="weak_password")
+
+        now = utc_now()
+        payload = {
+            "email": email_lower,
+            "email_lower": email_lower,
+            "username": username_clean,
+            "username_lower": username_clean.lower(),
+            "password_hash": encoded,
+            "created_at": now,
+            "updated_at": now,
+            "last_seen_at": now,
+        }
+
+        return cls._insert_user_payload(payload, email_lower)
+
+    @classmethod
+    def _insert_user_payload(cls, payload: dict[str, Any], email_lower: str) -> UserResult:
+        users = MongoStore.users()
         try:
             inserted = users.insert_one(payload)
         except DuplicateKeyError:
@@ -130,6 +164,44 @@ class UserStore:
         if not user:
             return None
         return cls._serialize_user(user)
+
+    @classmethod
+    def get_user_by_email(cls, email: str) -> dict[str, Any] | None:
+        try:
+            email_lower = cls._validate_email(email)
+        except ValidationError:
+            return None
+        try:
+            user = MongoStore.users().find_one({"email_lower": email_lower})
+        except PyMongoError:
+            return None
+        if not user:
+            return None
+        return cls._serialize_user(user)
+
+    @classmethod
+    def authenticate_external_email(cls, email: str) -> UserResult:
+        try:
+            email_lower = cls._validate_email(email)
+        except ValidationError:
+            return UserResult(ok=False, code="invalid_credentials")
+
+        users = MongoStore.users()
+        try:
+            user = users.find_one({"email_lower": email_lower})
+        except PyMongoError:
+            return UserResult(ok=False, code="database_error")
+        if not user:
+            return UserResult(ok=False, code="account_not_found")
+
+        try:
+            users.update_one(
+                {"_id": user["_id"]},
+                {"$set": {"last_seen_at": utc_now(), "updated_at": utc_now()}},
+            )
+        except PyMongoError:
+            return UserResult(ok=False, code="database_error")
+        return UserResult(ok=True, code="authenticated", data={"user": cls._serialize_user(user)})
 
     @classmethod
     def update_username(cls, user_id: str, username: str) -> UserResult:

@@ -3,6 +3,7 @@
   const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
 
   const roomStatusPill = document.getElementById("roomStatusPill");
+  const roomStatusPillMobile = document.getElementById("roomStatusPillMobile");
   const inviteWhatsappBtn = document.getElementById("inviteWhatsappBtn");
   const participantsEl = document.getElementById("participants");
   const joinRequestsPanelEl = document.getElementById("joinRequestsPanel");
@@ -49,8 +50,14 @@
   };
 
   const setStatus = (text, isOffline = false) => {
-    roomStatusPill.textContent = text;
-    roomStatusPill.dataset.state = isOffline ? "offline" : "online";
+    if (roomStatusPill) {
+      roomStatusPill.textContent = text;
+      roomStatusPill.dataset.state = isOffline ? "offline" : "online";
+    }
+    if (roomStatusPillMobile) {
+      roomStatusPillMobile.textContent = text;
+      roomStatusPillMobile.dataset.state = isOffline ? "offline" : "online";
+    }
   };
 
   const getCookieValue = (name) => {

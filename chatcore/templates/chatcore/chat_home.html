@@ -4,98 +4,214 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PulsePair Chat</title>
+  <title>{{ page_title }} | PulsePair</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'chatcore/css/app.css' %}">
 </head>
-<body class="pp-bg">
-  <main class="pp-app" id="chatAppRoot">
-    <header class="pp-header">
-      <div class="pp-brand-wrap">
-        <div class="pp-brand-badge"></div>
-        <div>
-          <p class="pp-brand">PulsePair</p>
-          <p class="pp-brand-sub">Private + Room Chat</p>
-        </div>
-        <span class="pp-status" id="dmConnection">Connecting</span>
-      </div>
-      <nav class="pp-nav">
-        <a href="{% url 'chat_home' %}" class="pp-nav-link pp-nav-link-active">Private Chat</a>
-        <a href="{% url 'lobby' %}" class="pp-nav-link">Room Chat</a>
-        <form method="post" action="{% url 'logout' %}" class="pp-logout-form">
-          {% csrf_token %}
-          <button type="submit" class="pp-nav-link pp-logout-btn">Log out</button>
-        </form>
+<body class="pp-bg pp-page-{{ page }}">
+  <main class="pp-shell" id="chatAppRoot">
+    <aside class="pp-sidebar" aria-label="Primary">
+      <a href="{% url 'chat_home' %}" class="pp-logo">
+        <span class="pp-logo-mark">P</span>
+        <span>
+          <strong>PulsePair</strong>
+          <small id="dmConnection">Connecting</small>
+        </span>
+      </a>
+
+      <nav class="pp-side-nav">
+        <a href="{% url 'chat_home' %}" class="pp-side-link {% if page == 'inbox' or page == 'thread' %}pp-side-link-active{% endif %}">
+          <span class="pp-nav-icon">C</span>
+          <span>Chats</span>
+        </a>
+        <a href="{% url 'chat_people' %}" class="pp-side-link {% if page == 'people' %}pp-side-link-active{% endif %}">
+          <span class="pp-nav-icon">P</span>
+          <span>People</span>
+        </a>
+        <a href="{% url 'lobby' %}" class="pp-side-link">
+          <span class="pp-nav-icon">R</span>
+          <span>Rooms</span>
+        </a>
+        <a href="{% url 'chat_profile' %}" class="pp-side-link {% if page == 'profile' %}pp-side-link-active{% endif %}">
+          <span class="pp-nav-icon">S</span>
+          <span>Profile</span>
+        </a>
       </nav>
-    </header>
 
-    <section class="pp-toolbar">
-      <div class="pp-search-wrap">
-        <label for="searchInput" class="pp-field-label">Search Users</label>
-        <input id="searchInput" type="text" class="pp-search-input" placeholder="Search username and start chat..." autocomplete="off">
-        <div id="searchResults" class="pp-search-results hidden"></div>
+      <div class="pp-sidebar-user">
+        <span class="pp-avatar pp-avatar-self">{{ user_name|first|upper }}</span>
+        <span>
+          <strong>{{ user_name }}</strong>
+          <small>{{ user_email }}</small>
+        </span>
       </div>
-      <form id="usernameForm" class="pp-profile-form">
+
+      <form method="post" action="{% url 'logout' %}" class="pp-logout-form">
         {% csrf_token %}
-        <label for="usernameInput" class="pp-field-label">Username</label>
-        <div class="pp-profile-edit-row">
-          <input id="usernameInput" name="username" class="pp-profile-input" value="{{ user_name }}" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" required>
-          <button class="pp-profile-btn" type="submit">Save</button>
-        </div>
+        <button type="submit" class="pp-logout-btn">Log out</button>
       </form>
-    </section>
+    </aside>
 
-    <p id="usernameNotice" class="pp-inline-note"></p>
+    <section class="pp-main">
+      <header class="pp-mobile-topbar">
+        <a href="{% url 'chat_home' %}" class="pp-mobile-brand">PulsePair</a>
+        <span class="pp-status pp-status-mobile" id="dmConnectionMobile">Connecting</span>
+      </header>
 
-    <section class="pp-chat-layout" id="ppChatLayout">
-      <aside class="pp-conversations" id="conversationPane">
-        <div class="pp-pane-top">
-          <h2 class="pp-pane-title">Conversations</h2>
-          <p class="pp-pane-sub">Your recent direct chats</p>
-        </div>
-        <div id="conversationList" class="pp-conversation-list"></div>
-        <p id="conversationEmpty" class="pp-empty">Search a username to start chatting.</p>
-      </aside>
-
-      <section class="pp-thread" id="threadPane">
-        <div class="pp-thread-head">
-          <button id="mobileBackBtn" class="pp-mobile-back" type="button">Back</button>
+      {% if page == "inbox" %}
+      <section class="pp-screen pp-inbox-screen">
+        <div class="pp-screen-head">
           <div>
-            <h2 id="chatTitle" class="pp-thread-title">Select a conversation</h2>
-            <p id="chatMeta" class="pp-thread-meta">Messages are stored safely in your MongoDB.</p>
+            <p class="pp-kicker">Private messages</p>
+            <h1 class="pp-screen-title">Chats</h1>
           </div>
+          <a href="{% url 'chat_people' %}" class="pp-primary-action">New Chat</a>
         </div>
 
-        <div id="messages" class="pp-messages"></div>
+        <div class="pp-inbox-metrics">
+          <article class="pp-metric-card">
+            <p class="pp-metric-label">Conversations</p>
+            <p class="pp-metric-value">{{ conversations|length }}</p>
+          </article>
+          <article class="pp-metric-card">
+            <p class="pp-metric-label">Unread</p>
+            <p class="pp-metric-value" id="inboxUnreadCount">0</p>
+          </article>
+          <article class="pp-metric-card">
+            <p class="pp-metric-label">Status</p>
+            <p class="pp-metric-value pp-metric-status">Live & synced</p>
+          </article>
+        </div>
 
-        <form id="composer" class="pp-composer">
-          <textarea id="messageInput" class="pp-composer-input" rows="1" placeholder="Type a message" maxlength="2000" disabled></textarea>
-          <button id="sendBtn" class="pp-send-btn" type="submit" disabled>Send</button>
-        </form>
+        <div class="pp-content-grid pp-content-grid-inbox">
+          <section class="pp-list-panel">
+            <div class="pp-list-head">
+              <h2>Recent</h2>
+              <span class="pp-count-pill">{{ conversations|length }}</span>
+            </div>
+            <div id="conversationList" class="pp-conversation-list pp-chat-list"></div>
+            <p id="conversationEmpty" class="pp-empty pp-empty-box">No conversations yet. Start one from People.</p>
+          </section>
+
+          <aside class="pp-desktop-preview">
+            <div class="pp-preview-head">
+              <h2>Focused Inbox</h2>
+              <p>Clean conversation flow, instant sync, and no duplicate controls.</p>
+            </div>
+            <div class="pp-preview-phone">
+              <span class="pp-preview-line pp-preview-line-short"></span>
+              <span class="pp-preview-bubble"></span>
+              <span class="pp-preview-bubble pp-preview-bubble-out"></span>
+              <span class="pp-preview-line"></span>
+            </div>
+          </aside>
+        </div>
       </section>
+      {% elif page == "thread" %}
+      <section class="pp-thread-screen">
+        <aside class="pp-thread-list">
+          <div class="pp-list-head">
+            <h2>Chats</h2>
+            <a href="{% url 'chat_people' %}" class="pp-text-action">New</a>
+          </div>
+          <div id="conversationList" class="pp-conversation-list pp-chat-list"></div>
+          <p id="conversationEmpty" class="pp-empty">No conversations yet.</p>
+        </aside>
 
-      <aside class="pp-profile">
-        <h3 class="pp-pane-title">Profile</h3>
-        <div class="pp-profile-card">
-          <p class="pp-profile-key">Email</p>
-          <p class="pp-profile-value">{{ user_email }}</p>
-          <p class="pp-profile-key">Username</p>
-          <p class="pp-profile-value" id="profileUsername">{{ user_name }}</p>
-          <p class="pp-profile-key">Tip</p>
-          <p class="pp-profile-help">Start P2P chat by searching username. Tap a conversation to continue instantly.</p>
+        <section class="pp-thread-panel" id="threadPane">
+          <header class="pp-thread-head">
+            <a href="{% url 'chat_home' %}" id="mobileBackBtn" class="pp-mobile-back" aria-label="Back to chats">Back</a>
+            <span class="pp-avatar pp-thread-avatar">{{ active_peer.username|first|upper }}</span>
+            <div class="pp-thread-person">
+              <h1 id="chatTitle" class="pp-thread-title">{{ active_peer.username }}</h1>
+              <p id="chatMeta" class="pp-thread-meta">Loading messages...</p>
+            </div>
+          </header>
+
+          <div id="messages" class="pp-messages"></div>
+
+          <form id="composer" class="pp-composer">
+            <textarea id="messageInput" class="pp-composer-input" rows="1" placeholder="Message {{ active_peer.username }}" maxlength="2000" disabled></textarea>
+            <button id="sendBtn" class="pp-send-btn" type="submit" disabled>Send</button>
+          </form>
+        </section>
+      </section>
+      {% elif page == "people" %}
+      <section class="pp-screen pp-people-screen">
+        <div class="pp-screen-head">
+          <div>
+            <p class="pp-kicker">Directory</p>
+            <h1 class="pp-screen-title">People</h1>
+          </div>
+          <a href="{% url 'chat_home' %}" class="pp-secondary-action">Chats</a>
         </div>
-      </aside>
+
+        <section class="pp-search-panel">
+          <label for="peopleSearchInput" class="pp-field-label">Search username</label>
+          <input id="peopleSearchInput" type="text" class="pp-search-input" placeholder="Type a username..." autocomplete="off" autofocus>
+          <div id="peopleSearchResults" class="pp-people-results"></div>
+          <p id="peopleSearchEmpty" class="pp-empty pp-empty-box">Search for a username to start a private chat.</p>
+        </section>
+      </section>
+      {% elif page == "profile" %}
+      <section class="pp-screen pp-profile-screen">
+        <div class="pp-screen-head">
+          <div>
+            <p class="pp-kicker">Account</p>
+            <h1 class="pp-screen-title">Profile</h1>
+          </div>
+          <a href="{% url 'chat_home' %}" class="pp-secondary-action">Chats</a>
+        </div>
+
+        <section class="pp-settings-layout">
+          <form id="usernameForm" class="pp-settings-panel">
+            {% csrf_token %}
+            <div class="pp-settings-row">
+              <span class="pp-avatar pp-avatar-self">{{ user_name|first|upper }}</span>
+              <span>
+                <strong id="profileUsername">{{ user_name }}</strong>
+                <small>{{ user_email }}</small>
+              </span>
+            </div>
+
+            <label for="usernameInput" class="pp-field-label">Username</label>
+            <div class="pp-profile-edit-row">
+              <input id="usernameInput" name="username" class="pp-profile-input" value="{{ user_name }}" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" required>
+              <button class="pp-profile-btn" type="submit">Save</button>
+            </div>
+            <p id="usernameNotice" class="pp-inline-note"></p>
+          </form>
+
+          <aside class="pp-settings-panel pp-settings-panel-muted">
+            <h2>Available features</h2>
+            <a href="{% url 'chat_home' %}" class="pp-settings-link">Private chat inbox</a>
+            <a href="{% url 'chat_people' %}" class="pp-settings-link">Username search</a>
+            <a href="{% url 'lobby' %}" class="pp-settings-link">Legacy room chat</a>
+          </aside>
+        </section>
+      </section>
+      {% endif %}
     </section>
+
+    <nav class="pp-mobile-tabs" aria-label="Mobile navigation">
+      <a href="{% url 'chat_home' %}" class="pp-mobile-tab {% if page == 'inbox' or page == 'thread' %}pp-mobile-tab-active{% endif %}">Chats</a>
+      <a href="{% url 'chat_people' %}" class="pp-mobile-tab {% if page == 'people' %}pp-mobile-tab-active{% endif %}">People</a>
+      <a href="{% url 'lobby' %}" class="pp-mobile-tab">Rooms</a>
+      <a href="{% url 'chat_profile' %}" class="pp-mobile-tab {% if page == 'profile' %}pp-mobile-tab-active{% endif %}">Profile</a>
+    </nav>
   </main>
 
   {{ conversations|json_script:"initialConversations" }}
+  {{ active_peer|json_script:"activePeerData" }}
   <script>
     window.CHAT_BOOTSTRAP = {
+      page: "{{ page|escapejs }}",
       userId: "{{ user_id|escapejs }}",
       userName: "{{ user_name|escapejs }}",
-      userEmail: "{{ user_email|escapejs }}"
+      userEmail: "{{ user_email|escapejs }}",
+      threadBaseUrl: "/chat/u/"
     };
   </script>
   <script src="{% static 'chatcore/js/chat_home.js' %}"></script>

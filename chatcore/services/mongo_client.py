@@ -52,6 +52,11 @@ class MongoStore:
         return cls.db()["dm_messages"]
 
     @classmethod
+    def pending_signups(cls) -> Collection:
+        cls.ensure_indexes()
+        return cls.db()["pending_signups"]
+
+    @classmethod
     def ensure_indexes(cls) -> None:
         if cls._indexes_ready:
             return
@@ -85,6 +90,20 @@ class MongoStore:
                 [("participants", ASCENDING), ("sent_at", DESCENDING)],
                 name="dm_participants_time_desc",
             )
+
+            pending_signups = db["pending_signups"]
+            pending_signups.create_index([("email_lower", ASCENDING)], unique=True, name="uniq_pending_email_lower")
+            pending_signups.create_index(
+                [("username_lower", ASCENDING)],
+                unique=True,
+                name="uniq_pending_username_lower",
+            )
+            pending_signups.create_index(
+                [("expires_at", ASCENDING)],
+                expireAfterSeconds=0,
+                name="ttl_pending_signup_expiry",
+            )
+            pending_signups.create_index([("updated_at", DESCENDING)], name="pending_updated_desc")
 
             cls._indexes_ready = True
 

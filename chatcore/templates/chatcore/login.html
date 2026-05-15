@@ -12,29 +12,64 @@
 </head>
 <body class="auth-bg">
   <main class="auth-shell">
-    <section class="auth-card">
-      <p class="auth-kicker">Secure chat</p>
-      <h1 class="auth-title">Welcome Back</h1>
-      <p class="auth-sub">Sign in to continue to your chats.</p>
+    <section class="auth-surface">
+      <aside class="auth-showcase">
+        <a href="{% url 'root' %}" class="auth-brand">
+          <span class="auth-brand-mark">P</span>
+          <span>
+            <strong>PulsePair</strong>
+            <small>Private + Room Chat</small>
+          </span>
+        </a>
+        <h1 class="auth-showcase-title">Conversations that feel instant and calm.</h1>
+        <p class="auth-showcase-copy">Your inbox, private threads, and room chat in one secure workspace.</p>
+        <div class="auth-showcase-cards">
+          <article class="auth-mini-card">
+            <p class="auth-mini-label">Live sync</p>
+            <p class="auth-mini-value">Realtime messages</p>
+          </article>
+          <article class="auth-mini-card">
+            <p class="auth-mini-label">Identity</p>
+            <p class="auth-mini-value">Unique usernames</p>
+          </article>
+        </div>
+      </aside>
 
-      {% if error %}
-      <p class="auth-error">{{ error }}</p>
-      {% endif %}
+      <section class="auth-card">
+        <p class="auth-kicker">Welcome back</p>
+        <h2 class="auth-title">Sign In</h2>
+        <p class="auth-sub">Continue your chats and rooms.</p>
 
-      <form method="post" class="auth-form">
-        {% csrf_token %}
-        <input type="hidden" name="next" value="{{ next }}">
+        {% if error %}
+        <p class="auth-error">{{ error }}</p>
+        {% endif %}
 
-        <label class="auth-label" for="email">Email</label>
-        <input id="email" name="email" type="email" class="auth-input" value="{{ email|default:'' }}" required>
+        <form method="post" class="auth-form">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}">
 
-        <label class="auth-label" for="password">Password</label>
-        <input id="password" name="password" type="password" class="auth-input" required>
+          <label class="auth-label" for="email">Email</label>
+          <input id="email" name="email" type="email" class="auth-input" value="{{ email|default:'' }}" required>
 
-        <button type="submit" class="auth-btn">Log In</button>
-      </form>
+          <label class="auth-label" for="password">Password</label>
+          <input id="password" name="password" type="password" class="auth-input" required>
 
-      <p class="auth-foot">No account? <a href="{% url 'signup' %}">Create one</a></p>
+          <button type="submit" class="auth-btn">Log In</button>
+        </form>
+
+        <div class="auth-divider"><span>or</span></div>
+
+        {% if google_login_enabled %}
+        <a href="{% url 'google_login_start' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="auth-oauth-btn">
+          <span class="auth-google-mark" aria-hidden="true">G</span>
+          <span>Continue with Google</span>
+        </a>
+        {% else %}
+        <p class="auth-oauth-note">Google Sign-In is temporarily unavailable.</p>
+        {% endif %}
+
+        <p class="auth-foot">No account? <a href="{% url 'signup' %}">Create one</a></p>
+      </section>
     </section>
   </main>
 </body>

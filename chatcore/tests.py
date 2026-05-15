@@ -1,9 +1,15 @@
 import re
+from datetime import datetime, timedelta
+from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.contrib.auth.hashers import make_password
+from django.test import SimpleTestCase, override_settings
 
 from .consumers import DMConsumer
+from .services.google_oauth import GoogleOAuthResult
 from .services.memory_store import RoomStateService
+from .services.signup_verification_store import SignupVerificationResult
+from .services.signup_verification_store import SignupVerificationStore
 
 
 class HealthTests(SimpleTestCase):
@@ -20,6 +26,19 @@ class HealthTests(SimpleTestCase):
         response = self.client.get("/rooms/")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, "/login/?next=%2Frooms%2F")
+
+    def test_private_chat_pages_require_auth(self):
+        protected_paths = [
+            "/chat/",
+            "/chat/people/",
+            "/chat/profile/",
+            "/chat/u/507f1f77bcf86cd799439011/",
+        ]
+        for path in protected_paths:
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 302)
+                self.assertTrue(response.url.startswith("/login/?next="))
 
 
 class OneTimeImageFlowTests(SimpleTestCase):
@@ -111,3 +130,125 @@ class DMGroupNameTests(SimpleTestCase):
         group = DMConsumer.dm_thread_group(thread_key)
         self.assertLess(len(group), 100)
         self.assertRegex(group, re.compile(r"^[A-Za-z0-9._-]+$"))
+
+
+class AuthEnhancementTests(SimpleTestCase):
+    @override_settings(
+        GOOGLE_OAUTH_CLIENT_ID="test-client-id",
+        GOOGLE_OAUTH_CLIENT_SECRET="test-client-secret",
+    )
+    def test_login_page_shows_google_option_when_configured(self):
+        response = self.client.get("/login/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Continue with Google")
+
+    @patch("chatcore.views.SignupVerificationStore.start_signup_verification")
+    def test_signup_redirects_to_verify_when_otp_sent(self, mock_start_signup):
+        mock_start_signup.return_value = SignupVerificationResult(
+            ok=True,
+            code="otp_sent",
+            data={"email": "user@example.com", "username": "user123"},
+        )
+
+        response = self.client.post(
+            "/signup/",
+            {"email": "user@example.com", "username": "user123", "password": "longpassword"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/signup/verify/")
+        session = self.client.session
+        self.assertEqual(session.get("pending_signup_email"), "user@example.com")
+        self.assertEqual(session.get("pending_signup_username"), "user123")
+
+    def test_signup_verify_requires_pending_session(self):
+        response = self.client.get("/signup/verify/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/signup/")
+
+    @patch("chatcore.views.SignupVerificationStore.start_signup_verification")
+    @patch("chatcore.views.SignupVerificationStore.verify_signup_otp")
+    @patch("chatcore.views.SignupVerificationStore.get_pending_signup")
+    def test_signup_verify_creates_session_on_success(self, mock_pending, mock_verify, mock_start):
+        mock_start.return_value = SignupVerificationResult(
+            ok=True,
+            code="otp_sent",
+            data={"email": "verify@example.com", "username": "verifyuser"},
+        )
+        self.client.post(
+            "/signup/",
+            {"email": "verify@example.com", "username": "verifyuser", "password": "longpassword"},
+        )
+        mock_pending.return_value = {"email": "verify@example.com", "username": "verifyuser"}
+        mock_verify.return_value = SignupVerificationResult(
+            ok=True,
+            code="verified",
+            data={
+                "user": {
+                    "user_id": "507f1f77bcf86cd799439011",
+                    "username": "verifyuser",
+                    "email": "verify@example.com",
+                }
+            },
+        )
+
+        response = self.client.post("/signup/verify/", {"otp": "123456"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/chat/")
+
+        updated = self.client.session
+        self.assertEqual(updated.get("auth_user_email"), "verify@example.com")
+        self.assertEqual(updated.get("auth_user_name"), "verifyuser")
+        self.assertEqual(updated.get("pending_signup_email"), None)
+
+    @patch("chatcore.views.UserStore.authenticate_external_email")
+    @patch("chatcore.views.GoogleOAuthService.complete_login")
+    @override_settings(
+        GOOGLE_OAUTH_CLIENT_ID="test-client-id",
+        GOOGLE_OAUTH_CLIENT_SECRET="test-client-secret",
+    )
+    def test_google_callback_shows_error_for_non_onboarded_email(self, mock_complete, mock_auth):
+        mock_complete.return_value = GoogleOAuthResult(
+            ok=True,
+            code="oauth_authenticated",
+            data={"email": "newuser@example.com", "next_url": ""},
+        )
+        mock_auth.return_value = type("AuthResult", (), {"ok": False, "code": "account_not_found"})()
+
+        response = self.client.get("/google/callback/?state=stub&code=stub")
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, "You do not have an account", status_code=400)
+
+    @patch("chatcore.services.signup_verification_store.UserStore.create_user_from_password_hash")
+    @patch("chatcore.services.signup_verification_store.SignupVerificationStore._delete_pending")
+    @patch("chatcore.services.signup_verification_store.SignupVerificationStore._load_pending")
+    def test_verify_signup_otp_handles_naive_expiry_datetime(self, mock_load, _mock_delete, mock_create):
+        otp = "123456"
+        mock_load.return_value = {
+            "email": "verify@example.com",
+            "username": "verifyuser",
+            "password_hash": make_password("longpassword"),
+            "otp_hash": make_password(otp),
+            "expires_at": datetime.utcnow() + timedelta(minutes=5),
+            "attempts": 0,
+            "max_attempts": 6,
+        }
+        mock_create.return_value = type(
+            "AuthResult",
+            (),
+            {
+                "ok": True,
+                "code": "created",
+                "data": {
+                    "user": {
+                        "user_id": "507f1f77bcf86cd799439011",
+                        "username": "verifyuser",
+                        "email": "verify@example.com",
+                    }
+                },
+            },
+        )()
+
+        result = SignupVerificationStore.verify_signup_otp(email="verify@example.com", otp_code=otp)
+        self.assertTrue(result.ok)
+        self.assertEqual(result.code, "verified")

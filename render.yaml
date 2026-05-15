@@ -19,8 +19,40 @@ services:
       - key: USE_MANIFEST_STATIC
         value: False
       - key: MONGODB_URI
-        value: mongodb+srv://nishantbaruah3_db_user:LptzrluHQSRJmhFC@cluster1.fc5ufaf.mongodb.net/?appName=cluster1
+        sync: false
       - key: MONGODB_DB_NAME
         value: pulsepair_chat
+      - key: SESSION_COOKIE_AGE_SECONDS
+        value: "86400"
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+      - key: SIGNUP_OTP_TTL_SECONDS
+        value: "600"
+      - key: SIGNUP_OTP_RESEND_COOLDOWN_SECONDS
+        value: "45"
+      - key: SIGNUP_OTP_MAX_ATTEMPTS
+        value: "6"
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_SCOPES
+        value: openid,email,profile
+      - key: GOOGLE_OAUTH_AUTH_URI
+        value: https://accounts.google.com/o/oauth2/v2/auth
+      - key: GOOGLE_OAUTH_TOKEN_URI
+        value: https://oauth2.googleapis.com/token
+      - key: GOOGLE_OAUTH_USERINFO_URI
+        value: https://openidconnect.googleapis.com/v1/userinfo
       - key: SECRET_KEY
         generateValue: true

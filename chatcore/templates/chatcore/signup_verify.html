@@ -1,0 +1,80 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify OTP | PulsePair</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'chatcore/css/app.css' %}">
+</head>
+<body class="auth-bg">
+  <main class="auth-shell">
+    <section class="auth-surface">
+      <aside class="auth-showcase">
+        <a href="{% url 'root' %}" class="auth-brand">
+          <span class="auth-brand-mark">P</span>
+          <span>
+            <strong>PulsePair</strong>
+            <small>Private + Room Chat</small>
+          </span>
+        </a>
+        <h1 class="auth-showcase-title">Verify your email to finish signup.</h1>
+        <p class="auth-showcase-copy">We sent a one-time passcode to your email. Enter it below to create your account securely.</p>
+        <div class="auth-showcase-cards">
+          <article class="auth-mini-card">
+            <p class="auth-mini-label">Email</p>
+            <p class="auth-mini-value">{{ email }}</p>
+          </article>
+          <article class="auth-mini-card">
+            <p class="auth-mini-label">Username</p>
+            <p class="auth-mini-value">{{ username }}</p>
+          </article>
+        </div>
+      </aside>
+
+      <section class="auth-card">
+        <p class="auth-kicker">Step 2 of 2</p>
+        <h2 class="auth-title">Verify OTP</h2>
+        <p class="auth-sub">Enter the 6-digit code sent to <strong>{{ email }}</strong>.</p>
+
+        {% if error %}
+        <p class="auth-error">{{ error }}</p>
+        {% endif %}
+        {% if success %}
+        <p class="auth-success">{{ success }}</p>
+        {% endif %}
+
+        <form method="post" class="auth-form">
+          {% csrf_token %}
+          <label class="auth-label" for="otp">One-Time Password</label>
+          <input
+            id="otp"
+            name="otp"
+            type="text"
+            class="auth-input auth-otp-input"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            minlength="6"
+            maxlength="6"
+            pattern="[0-9]{6}"
+            value="{{ otp|default:'' }}"
+            required
+          >
+          <button type="submit" class="auth-btn">Verify & Create Account</button>
+        </form>
+
+        <form method="post" class="auth-resend-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="resend">
+          <button type="submit" class="auth-link-btn">Resend OTP</button>
+        </form>
+
+        <p class="auth-foot">Wrong email? <a href="{% url 'signup' %}">Start over</a></p>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

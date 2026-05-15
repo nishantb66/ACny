@@ -5,7 +5,9 @@
   const createRoomBtn = document.getElementById("createRoomBtn");
   const bannerEl = document.getElementById("notificationBanner");
   const connectionEl = document.getElementById("lobbyConnection");
+  const mobileConnectionEl = document.getElementById("lobbyConnectionMobile");
   const selfNamePillEl = document.getElementById("selfNamePill");
+  const selfNamePillMobileEl = document.getElementById("selfNamePillMobile");
 
   const state = {
     rooms: new Map(),
@@ -21,11 +23,22 @@
   };
 
   const bootstrap = window.CHAT_BOOTSTRAP;
-  selfNamePillEl.textContent = bootstrap.userName;
+  if (selfNamePillEl) {
+    selfNamePillEl.textContent = bootstrap.userName;
+  }
+  if (selfNamePillMobileEl) {
+    selfNamePillMobileEl.textContent = bootstrap.userName;
+  }
 
   const setConnection = (label, isOffline = false) => {
-    connectionEl.textContent = label;
-    connectionEl.dataset.state = isOffline ? "offline" : "online";
+    if (connectionEl) {
+      connectionEl.textContent = label;
+      connectionEl.dataset.state = isOffline ? "offline" : "online";
+    }
+    if (mobileConnectionEl) {
+      mobileConnectionEl.textContent = label;
+      mobileConnectionEl.dataset.state = isOffline ? "offline" : "online";
+    }
   };
 
   const showBanner = (text, isError = false) => {
@@ -50,7 +63,7 @@
     card.className = "room-card";
 
     const topRow = document.createElement("div");
-    topRow.className = "flex items-start justify-between gap-2";
+    topRow.className = "room-top-row";
 
     const left = document.createElement("div");
     const roomIdEl = document.createElement("p");

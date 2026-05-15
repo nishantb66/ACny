@@ -3,6 +3,8 @@
 PulsePair is a production-focused realtime chat app with:
 
 - Email/password authentication
+- Google Sign-In for existing onboarded users
+- OTP-based email verification before account creation
 - Unique usernames (changeable, uniqueness enforced)
 - MongoDB-backed persistence for users + chat history
 - Realtime P2P direct messaging by username search
@@ -21,9 +23,12 @@ PulsePair is a production-focused realtime chat app with:
 ### Authentication
 
 - Signup with `email`, `password`, and `username`
+- Signup now requires OTP verification over email before account creation
 - Login/logout session flow
+- Google OAuth login (only for users already registered by email)
 - Username uniqueness constraint (case-insensitive)
 - Update username from UI with conflict validation
+- Session lifetime fixed to 24 hours
 
 ### P2P Direct Chat
 
@@ -73,6 +78,22 @@ python manage.py runserver
 - `SECRET_KEY`
 - `ALLOWED_HOSTS`
 - `CSRF_TRUSTED_ORIGINS`
+- `SESSION_COOKIE_AGE_SECONDS`
+- `EMAIL_HOST`
+- `EMAIL_PORT`
+- `EMAIL_HOST_USER`
+- `EMAIL_HOST_PASSWORD`
+- `EMAIL_USE_TLS`
+- `DEFAULT_FROM_EMAIL`
+- `SIGNUP_OTP_TTL_SECONDS`
+- `SIGNUP_OTP_RESEND_COOLDOWN_SECONDS`
+- `SIGNUP_OTP_MAX_ATTEMPTS`
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_OAUTH_SCOPES`
+- `GOOGLE_OAUTH_AUTH_URI`
+- `GOOGLE_OAUTH_TOKEN_URI`
+- `GOOGLE_OAUTH_USERINFO_URI`
 
 See `.env.example` for full list.
 
@@ -83,17 +104,21 @@ Collections created automatically:
 - `users`
 - `room_messages`
 - `dm_messages`
+- `pending_signups`
 
 Indexes are created automatically at runtime for:
 
 - unique `email_lower`
 - unique `username_lower`
+- unique `pending_signups.email_lower`
+- unique `pending_signups.username_lower`
+- TTL cleanup on `pending_signups.expires_at`
 - conversation/message retrieval paths
 - unread scans for DMs
 
 ## Routes
 
-- `/login/`, `/signup/`, `/logout/`
+- `/login/`, `/login/google/`, `/google/callback/`, `/signup/`, `/signup/verify/`, `/logout/`
 - `/chat/` -> P2P home
 - `/rooms/` -> legacy random room lobby
 - `/room/<room_id>/` -> legacy room

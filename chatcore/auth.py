@@ -5,6 +5,7 @@ from functools import wraps
 from typing import Any
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -26,15 +27,15 @@ def get_session_user(request: HttpRequest) -> dict[str, str] | None:
 
 
 def set_session_user(request: HttpRequest, user: dict[str, Any]) -> None:
+    request.session.cycle_key()
     request.session[SESSION_USER_ID] = str(user["user_id"])
     request.session[SESSION_USER_NAME] = str(user["username"])
     request.session[SESSION_USER_EMAIL] = str(user["email"])
+    request.session.set_expiry(settings.SESSION_COOKIE_AGE)
 
 
 def clear_session_user(request: HttpRequest) -> None:
-    request.session.pop(SESSION_USER_ID, None)
-    request.session.pop(SESSION_USER_NAME, None)
-    request.session.pop(SESSION_USER_EMAIL, None)
+    request.session.flush()
 
 
 def login_required(view_fn: Callable[..., HttpResponse]) -> Callable[..., HttpResponse]:

@@ -12,31 +12,55 @@
 </head>
 <body class="auth-bg">
   <main class="auth-shell">
-    <section class="auth-card">
-      <p class="auth-kicker">Secure chat</p>
-      <h1 class="auth-title">Create Account</h1>
-      <p class="auth-sub">Use email and a unique username.</p>
+    <section class="auth-surface">
+      <aside class="auth-showcase">
+        <a href="{% url 'root' %}" class="auth-brand">
+          <span class="auth-brand-mark">P</span>
+          <span>
+            <strong>PulsePair</strong>
+            <small>Private + Room Chat</small>
+          </span>
+        </a>
+        <h1 class="auth-showcase-title">Set up your profile once, chat everywhere.</h1>
+        <p class="auth-showcase-copy">Create your account to unlock private chats, room chat, and persistent history.</p>
+        <div class="auth-showcase-cards">
+          <article class="auth-mini-card">
+            <p class="auth-mini-label">Secure access</p>
+            <p class="auth-mini-value">Email + password login</p>
+          </article>
+          <article class="auth-mini-card">
+            <p class="auth-mini-label">Profile</p>
+            <p class="auth-mini-value">Unique username</p>
+          </article>
+        </div>
+      </aside>
 
-      {% if error %}
-      <p class="auth-error">{{ error }}</p>
-      {% endif %}
+      <section class="auth-card">
+        <p class="auth-kicker">Get started</p>
+        <h2 class="auth-title">Create Account</h2>
+        <p class="auth-sub">Use email and a unique username. We will verify your email with OTP before creating the account.</p>
 
-      <form method="post" class="auth-form">
-        {% csrf_token %}
+        {% if error %}
+        <p class="auth-error">{{ error }}</p>
+        {% endif %}
 
-        <label class="auth-label" for="username">Username</label>
-        <input id="username" name="username" type="text" class="auth-input" value="{{ username|default:'' }}" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" required>
+        <form method="post" class="auth-form">
+          {% csrf_token %}
 
-        <label class="auth-label" for="email">Email</label>
-        <input id="email" name="email" type="email" class="auth-input" value="{{ email|default:'' }}" required>
+          <label class="auth-label" for="username">Username</label>
+          <input id="username" name="username" type="text" class="auth-input" value="{{ username|default:'' }}" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" required>
 
-        <label class="auth-label" for="password">Password</label>
-        <input id="password" name="password" type="password" class="auth-input" minlength="8" required>
+          <label class="auth-label" for="email">Email</label>
+          <input id="email" name="email" type="email" class="auth-input" value="{{ email|default:'' }}" required>
 
-        <button type="submit" class="auth-btn">Create Account</button>
-      </form>
+          <label class="auth-label" for="password">Password</label>
+          <input id="password" name="password" type="password" class="auth-input" minlength="8" required>
 
-      <p class="auth-foot">Already have an account? <a href="{% url 'login' %}">Log in</a></p>
+          <button type="submit" class="auth-btn">Create Account</button>
+        </form>
+
+        <p class="auth-foot">Already have an account? <a href="{% url 'login' %}">Log in</a></p>
+      </section>
     </section>
   </main>
 </body>
